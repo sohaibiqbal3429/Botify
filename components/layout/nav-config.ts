@@ -22,26 +22,47 @@ export type AppNavItem = {
   isLogout?: boolean
 }
 
-export const HEADER_NAV_LEFT: AppNavItem[] = [
+export const SIDE_NAV_ITEMS: AppNavItem[] = [
   { name: "Overview", href: "/dashboard", icon: Home },
   { name: "Mining Hub", href: "/mining", icon: Pickaxe },
   { name: "Top-Up Center", href: "/deposit", icon: ArrowDownLeft },
   { name: "Cash Out", href: "/withdraw", icon: ArrowUpRight },
   { name: "Missions & Quests", href: "/tasks", icon: BarChart3 },
-  { name: "Logout", href: "#logout", icon: LogOut, isLogout: true },
 ]
 
-export const HEADER_NAV_RIGHT: AppNavItem[] = [
+export const LOGOUT_NAV_ITEM: AppNavItem = { name: "Logout", href: "#logout", icon: LogOut, isLogout: true }
+
+export const UTILITY_NAV_ITEMS: AppNavItem[] = [
   { name: "Asset Catalog", href: "/coins", icon: Coins },
   { name: "Wallet Hub", href: "/e-wallet", icon: CreditCard },
+]
+
+export const GLOBAL_UTILITY_NAV: AppNavItem[] = [
   { name: "Activity Timeline", href: "/transactions", icon: History },
   { name: "Help Desk", href: "/support", icon: HelpCircle },
-  { name: "Account Center", href: "/profile", icon: User },
-  { name: "Knowledge Base", href: "/terms", icon: FileText },
+]
+
+export const ACCOUNT_CENTER_NAV: AppNavItem = { name: "Account Center", href: "/profile", icon: User }
+
+export const KNOWLEDGE_BASE_NAV: AppNavItem = { name: "Knowledge Base", href: "/terms", icon: FileText }
+
+export const HEADER_NAV_LEFT: AppNavItem[] = SIDE_NAV_ITEMS
+
+export const HEADER_NAV_RIGHT: AppNavItem[] = [
+  ...UTILITY_NAV_ITEMS,
+  ...GLOBAL_UTILITY_NAV,
+  ACCOUNT_CENTER_NAV,
+  KNOWLEDGE_BASE_NAV,
 ]
 
 // Primary nav is used for mobile navigation and breadcrumbs; logout is excluded here.
-export const PRIMARY_NAV_ITEMS: AppNavItem[] = [...HEADER_NAV_LEFT.filter((item) => !item.isLogout), ...HEADER_NAV_RIGHT]
+export const PRIMARY_NAV_ITEMS: AppNavItem[] = [
+  ...SIDE_NAV_ITEMS,
+  ...UTILITY_NAV_ITEMS,
+  ...GLOBAL_UTILITY_NAV,
+  ACCOUNT_CENTER_NAV,
+  KNOWLEDGE_BASE_NAV,
+]
 
 export const ADMIN_NAV_ITEM: AppNavItem = {
   name: "Admin Panel",
