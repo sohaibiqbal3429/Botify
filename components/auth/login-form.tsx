@@ -168,137 +168,182 @@ export function LoginForm() {
   }
 
   return (
-    <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-border/70 bg-card shadow-xl shadow-primary/10 transition-colors motion-safe:transform-gpu motion-safe:duration-300 motion-safe:ease-out motion-safe:hover:-translate-y-1 motion-safe:hover:shadow-2xl">
-      <div className="bg-gradient-to-r from-primary to-accent py-4 text-center text-primary-foreground">
-        <h1 className="text-lg font-semibold tracking-wide">User Referral Login System</h1>
-      </div>
+    <div className="relative isolate w-full max-w-4xl overflow-hidden rounded-[28px] border border-border/70 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-50 shadow-2xl shadow-primary/20">
+      <div className="absolute inset-0 opacity-70 [background:radial-gradient(circle_at_10%_20%,rgba(56,189,248,0.14),transparent_35%),radial-gradient(circle_at_90%_10%,rgba(168,85,247,0.12),transparent_30%),radial-gradient(circle_at_50%_100%,rgba(14,165,233,0.18),transparent_35%)]" />
+      <div className="absolute -left-20 top-12 h-52 w-52 rounded-full bg-primary/10 blur-3xl" />
+      <div className="absolute -right-24 -top-16 h-60 w-60 rounded-full bg-accent/20 blur-3xl" />
 
-      <div className="space-y-6 px-6 py-6 sm:px-8">
-        <div className="flex justify-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-border/60 bg-background/80 text-primary shadow-sm">
-            <UserRoundPlus className="h-8 w-8" />
+      <div className="relative grid gap-10 p-8 md:grid-cols-[1fr,1.05fr] lg:p-12">
+        <div className="space-y-6 md:self-center">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-100">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10">
+              <UserRoundPlus className="h-4 w-4" />
+            </span>
+            Sign in to referrals
+          </div>
+          <div className="space-y-3">
+            <h1 className="text-3xl font-semibold leading-tight text-white drop-shadow-sm">
+              Modern, distraction-free login for your referral dashboard
+            </h1>
+            <p className="text-sm leading-relaxed text-slate-200/80">
+              Choose how you want to authenticate and pick up right where you left off. Phone and email logins share the same secure session.
+            </p>
+          </div>
+          <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-white/10" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-white">Multi-channel access</p>
+                <p className="text-xs text-slate-200/70">Switch between email or phone without losing your progress.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-white/10" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-white">Adaptive security</p>
+                <p className="text-xs text-slate-200/70">We detect blocked accounts early to protect your referrals.</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {error && (
-          <Alert variant="destructive" className="motion-safe:animate-in motion-safe:fade-in-50">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+        <div className="relative rounded-2xl border border-white/15 bg-slate-950/70 p-6 shadow-2xl backdrop-blur">
+          <div className="absolute right-6 top-6 h-10 w-10 rounded-full bg-primary/10 blur-xl" />
+          <div className="absolute left-4 bottom-6 h-10 w-10 rounded-full bg-accent/10 blur-xl" />
+          <div className="relative space-y-6">
+            <div className="space-y-1 text-left">
+              <p className="text-xs uppercase tracking-[0.25em] text-slate-200/70">Login</p>
+              <p className="text-lg font-semibold text-white">Access your referral space</p>
+            </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <Tabs
-            value={authMethod}
-            onValueChange={(value) => {
-              setAuthMethod(value as "email" | "phone")
-              setError("")
-            }}
-            className="space-y-4"
-          >
-            <TabsList className="grid w-full grid-cols-2 motion-safe:transition-all motion-safe:duration-200">
-              <TabsTrigger value="email">Email</TabsTrigger>
-              <TabsTrigger value="phone">Phone</TabsTrigger>
-            </TabsList>
+            {error && (
+              <Alert variant="destructive" className="border-red-400/40 bg-red-500/10 text-red-50">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-            <TabsContent value="email" className="space-y-2 motion-safe:animate-in motion-safe:fade-in-50">
-              <Label htmlFor="email" className="text-sm font-semibold text-foreground/90">
-                Email Address
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                value={formData.email}
-                onChange={(event) => setFormData((prev) => ({ ...prev, email: event.target.value }))}
-                className="h-11"
-              />
-            </TabsContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <Tabs
+                value={authMethod}
+                onValueChange={(value) => {
+                  setAuthMethod(value as "email" | "phone")
+                  setError("")
+                }}
+                className="space-y-4"
+              >
+                <TabsList className="grid w-full grid-cols-2 rounded-xl bg-white/5 p-1 text-sm">
+                  <TabsTrigger
+                    value="email"
+                    className="rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-accent data-[state=active]:text-slate-950"
+                  >
+                    Email
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="phone"
+                    className="rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-accent data-[state=active]:text-slate-950"
+                  >
+                    Phone
+                  </TabsTrigger>
+                </TabsList>
 
-            <TabsContent value="phone" className="space-y-2 motion-safe:animate-in motion-safe:fade-in-50">
-              <Label htmlFor="phone" className="text-sm font-semibold text-foreground/90">
-                Phone Number
-              </Label>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <Select
-                  value={formData.countryCode}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, countryCode: value }))}
-                >
-                  <SelectTrigger className="h-11 rounded-md sm:w-40">
-                    <SelectValue placeholder="Country" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-64">
-                    {SORTED_COUNTRY_DIAL_CODES.map((country) => (
-                      <SelectItem key={country.isoCode} value={country.dialCode}>
-                        {country.name} ({country.dialCode})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  id="phone"
-                  inputMode="tel"
-                  placeholder="123456789"
-                  value={formData.phone}
-                  onChange={(event) =>
-                    setFormData((prev) => ({ ...prev, phone: event.target.value.replace(/[^\d]/g, "") }))
-                  }
-                  className="h-11 flex-1"
+                <TabsContent value="email" className="space-y-3">
+                  <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-200/80">
+                    Email Address
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="name@company.com"
+                    value={formData.email}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, email: event.target.value }))}
+                    className="h-12 rounded-xl border-white/10 bg-slate-900/70 text-white placeholder:text-slate-400"
+                  />
+                </TabsContent>
+
+                <TabsContent value="phone" className="space-y-3">
+                  <Label htmlFor="phone" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-200/80">
+                    Phone Number
+                  </Label>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Select
+                      value={formData.countryCode}
+                      onValueChange={(value) => setFormData((prev) => ({ ...prev, countryCode: value }))}
+                    >
+                      <SelectTrigger className="h-12 rounded-xl border-white/10 bg-slate-900/70 text-left text-white sm:w-44">
+                        <SelectValue placeholder="Country" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-64">
+                        {SORTED_COUNTRY_DIAL_CODES.map((country) => (
+                          <SelectItem key={country.isoCode} value={country.dialCode}>
+                            {country.name} ({country.dialCode})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      id="phone"
+                      inputMode="tel"
+                      placeholder="123 456 789"
+                      value={formData.phone}
+                      onChange={(event) =>
+                        setFormData((prev) => ({ ...prev, phone: event.target.value.replace(/[^\d]/g, "") }))
+                      }
+                      className="h-12 flex-1 rounded-xl border-white/10 bg-slate-900/70 text-white placeholder:text-slate-400"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-200/70">Use the number you registered with, including the country code.</p>
+                </TabsContent>
+              </Tabs>
+
+              <div className="space-y-3">
+                <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-200/80">
+                  Password
+                </Label>
+                <PasswordInput
+                  id="password"
+                  placeholder="Enter your password"
+                  value={formData.password}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, password: event.target.value }))}
+                  required
+                  className="h-12 rounded-xl border-white/10 bg-slate-900/70 text-white placeholder:text-slate-400"
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Use the number you registered with, including the country code.
-              </p>
-            </TabsContent>
-          </Tabs>
 
-          <div className="space-y-2 motion-safe:animate-in motion-safe:fade-in-50">
-            <Label htmlFor="password" className="text-sm font-semibold text-foreground/90">
-              Password
-            </Label>
-            <PasswordInput
-              id="password"
-              placeholder="Enter your password"
-              value={formData.password}
-              onChange={(event) => setFormData((prev) => ({ ...prev, password: event.target.value }))}
-              required
-              className="h-11"
-            />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Link
+                  href="/auth/forgot"
+                  className="text-sm font-medium text-primary underline-offset-4 transition hover:text-primary/80"
+                >
+                  Forgot Password?
+                </Link>
+                <div className="flex w-full gap-3 sm:w-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 h-11 rounded-xl border-white/30 bg-transparent text-white hover:bg-white/5 sm:flex-none"
+                    onClick={() => router.push("/auth/register")}
+                  >
+                    Create Account
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1 h-11 rounded-xl bg-gradient-to-r from-primary to-accent text-slate-950 shadow-lg shadow-primary/30 transition-all duration-200 hover:shadow-2xl sm:flex-none"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Logging in...
+                      </>
+                    ) : (
+                      "Login"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </form>
           </div>
-
-          <div className="flex items-center justify-end text-sm">
-            <Link
-              href="/auth/forgot"
-              className="font-medium text-primary underline-offset-4 transition-colors hover:text-primary/80 hover:underline"
-            >
-              Forgot Password?
-            </Link>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1 h-11 motion-safe:hover:scale-[1.01] motion-safe:active:scale-[0.99]"
-              onClick={() => router.push("/auth/register")}
-            >
-              (Create Account)
-            </Button>
-            <Button
-              type="submit"
-              className="flex-1 h-11 shadow-lg shadow-primary/20 motion-safe:hover:scale-[1.02] motion-safe:active:scale-[0.98]"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Logging in...
-                </>
-              ) : (
-                "Login"
-              )}
-            </Button>
-          </div>
-        </form>
+        </div>
       </div>
       <Dialog open={blockedModalOpen} onOpenChange={setBlockedModalOpen}>
         <DialogContent className="max-w-md">
