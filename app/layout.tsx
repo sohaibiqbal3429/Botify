@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "CryptoMine - Next-Generation Mining Platform",
+  title: "5G- Mining Platform",
   description:
     "Join our innovative mining ecosystem with referral rewards, team building, and sustainable earning opportunities.",
   generator: "v0.app",
@@ -37,7 +37,7 @@ export default function RootLayout({
           <TopLoaderProvider>
             {/* <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange> */}
               <AppShell>{children}</AppShell>
-            {/* </ThemeProvider> */}
+         {/* </ThemeProvider> */}
           </TopLoaderProvider>
         </Suspense>
       </body>
