@@ -64,7 +64,10 @@ export default async function dbConnect() {
   } catch (error) {
     cached.promise = null
 
-    if (allowFallback) {
+    const message = error instanceof Error ? error.message.toLowerCase() : ""
+    const isAuthFailure = /bad auth|authentication failed/.test(message)
+
+    if (allowFallback || isAuthFailure) {
       console.error("[database] Failed to connect to MongoDB. Falling back to in-memory store.", error)
       await initializeInMemoryDatabase()
       globalWithMongoose.__inMemoryDbInitialized = true
