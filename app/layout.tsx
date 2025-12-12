@@ -32,7 +32,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/logo.png" />
         <meta name="theme-color" content="#000000" />
       </head>
-      <body className={cn("min-h-screen bg-background font-sans antialiased text-foreground")}>
+      <body className={cn("min-h-screen bg-background font-sans antialiased text-foreground")} suppressHydrationWarning>
         <Suspense fallback={null}>
           <TopLoaderProvider>
             <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
