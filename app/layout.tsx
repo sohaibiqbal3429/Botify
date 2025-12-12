@@ -3,7 +3,7 @@ import { Suspense } from "react"
 import type { Metadata } from "next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TopLoaderProvider } from "@/components/top-loader"
-import { AppHeader } from "@/components/layout/app-header"
+import { AppShell } from "@/components/layout/app-shell"
 import { cn } from "@/lib/utils"
 
 import "./globals.css"
@@ -36,8 +36,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <TopLoaderProvider>
             {/* <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange> */}
-              <AppHeader />
-              {children}
+              <AppShell>{children}</AppShell>
             {/* </ThemeProvider> */}
           </TopLoaderProvider>
         </Suspense>
