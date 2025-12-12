@@ -9,25 +9,29 @@ import {
   HelpCircle,
   History,
   Home,
+  LogOut,
   Pickaxe,
   Settings,
   User,
-  Users,
 } from "lucide-react"
 
 export type AppNavItem = {
   name: string
   href: string
   icon: LucideIcon
+  isLogout?: boolean
 }
 
-export const PRIMARY_NAV_ITEMS: AppNavItem[] = [
+export const HEADER_NAV_LEFT: AppNavItem[] = [
   { name: "Overview", href: "/dashboard", icon: Home },
   { name: "Mining Hub", href: "/mining", icon: Pickaxe },
   { name: "Top-Up Center", href: "/deposit", icon: ArrowDownLeft },
   { name: "Cash Out", href: "/withdraw", icon: ArrowUpRight },
   { name: "Missions & Quests", href: "/tasks", icon: BarChart3 },
-  { name: "Network Crew", href: "/team", icon: Users },
+  { name: "Logout", href: "#logout", icon: LogOut, isLogout: true },
+]
+
+export const HEADER_NAV_RIGHT: AppNavItem[] = [
   { name: "Asset Catalog", href: "/coins", icon: Coins },
   { name: "Wallet Hub", href: "/e-wallet", icon: CreditCard },
   { name: "Activity Timeline", href: "/transactions", icon: History },
@@ -35,6 +39,9 @@ export const PRIMARY_NAV_ITEMS: AppNavItem[] = [
   { name: "Account Center", href: "/profile", icon: User },
   { name: "Knowledge Base", href: "/terms", icon: FileText },
 ]
+
+// Primary nav is used for mobile navigation and breadcrumbs; logout is excluded here.
+export const PRIMARY_NAV_ITEMS: AppNavItem[] = [...HEADER_NAV_LEFT.filter((item) => !item.isLogout), ...HEADER_NAV_RIGHT]
 
 export const ADMIN_NAV_ITEM: AppNavItem = {
   name: "Admin Panel",

@@ -2,23 +2,45 @@
 
 import { useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { Menu } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import { Loader2, Menu } from "lucide-react"
 
 import QuickActions, { AUTH_HIDDEN_ROUTES } from "@/components/layout/quick-actions"
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer"
-import { PRIMARY_NAV_ITEMS } from "@/components/layout/nav-config"
+import { HEADER_NAV_LEFT, HEADER_NAV_RIGHT } from "@/components/layout/nav-config"
 import { cn } from "@/lib/utils"
 
 export function AppHeader() {
   const pathname = usePathname() ?? "/"
+  const router = useRouter()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
 
   const shouldHide = useMemo(
     () => AUTH_HIDDEN_ROUTES.some((pattern) => pattern.test(pathname)),
     [pathname],
   )
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return
+    setIsLoggingOut(true)
+    try {
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!response.ok) {
+        throw new Error("Failed to sign out")
+      }
+      router.push("/auth/login")
+      router.refresh()
+    } catch (error) {
+      console.error("Logout error", error)
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
 
   if (shouldHide) {
     return null
@@ -57,27 +79,76 @@ export function AppHeader() {
             </div>
           </Link>
 
-          <nav className="hidden flex-1 items-center gap-1 md:flex">
-            {PRIMARY_NAV_ITEMS.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
-                    isActive
-                      ? "bg-gradient-to-r from-cyan-500/20 to-emerald-400/20 text-white shadow-inner shadow-cyan-500/10"
-                      : "text-slate-300 hover:-translate-y-[1px] hover:bg-slate-800/60 hover:text-white",
-                  )}
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  <item.icon className="h-4 w-4" aria-hidden />
-                  <span>{item.name}</span>
-                </Link>
-              )
-            })}
+          <nav className="hidden flex-1 items-center justify-between md:flex">
+            <div className="flex items-center gap-1">
+              {HEADER_NAV_LEFT.map((item) => {
+                if (item.isLogout) {
+                  return (
+                    <button
+                      key="logout"
+                      type="button"
+                      onClick={() => {
+                        void handleLogout()
+                      }}
+                      disabled={isLoggingOut}
+                      className={cn(
+                        "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
+                        "text-slate-300 hover:-translate-y-[1px] hover:bg-slate-800/60 hover:text-white disabled:opacity-70",
+                      )}
+                      aria-label="Sign out"
+                    >
+                      {isLoggingOut ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <item.icon className="h-4 w-4" aria-hidden />}
+                      <span>Logout</span>
+                    </button>
+                  )
+                }
+
+                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href ?? "#"}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
+                      isActive
+                        ? "bg-gradient-to-r from-cyan-500/20 to-emerald-400/20 text-white shadow-inner shadow-cyan-500/10"
+                        : "text-slate-300 hover:-translate-y-[1px] hover:bg-slate-800/60 hover:text-white",
+                    )}
+                    aria-current={isActive ? "page" : undefined}
+                    prefetch={item.href === "/team" ? true : undefined}
+                  >
+                    <item.icon className="h-4 w-4" aria-hidden />
+                    <span>{item.name}</span>
+                  </Link>
+                )
+              })}
+            </div>
+
+            <div className="flex items-center gap-1">
+              {HEADER_NAV_RIGHT.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href ?? "#"}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
+                      isActive
+                        ? "bg-gradient-to-r from-cyan-500/20 to-emerald-400/20 text-white shadow-inner shadow-cyan-500/10"
+                        : "text-slate-300 hover:-translate-y-[1px] hover:bg-slate-800/60 hover:text-white",
+                    )}
+                    aria-current={isActive ? "page" : undefined}
+                    prefetch={item.href === "/team" ? true : undefined}
+                  >
+                    <item.icon className="h-4 w-4" aria-hidden />
+                    <span>{item.name}</span>
+                  </Link>
+                )
+              })}
+            </div>
           </nav>
 
           <div className="ml-auto flex items-center gap-3">

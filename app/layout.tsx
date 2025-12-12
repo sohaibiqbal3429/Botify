@@ -35,10 +35,10 @@ export default function RootLayout({
       <body className={cn("min-h-screen bg-background font-sans antialiased text-foreground")} suppressHydrationWarning>
         <Suspense fallback={null}>
           <TopLoaderProvider>
-            <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+            {/* <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange> */}
               <AppHeader />
               {children}
-            </ThemeProvider>
+            {/* </ThemeProvider> */}
           </TopLoaderProvider>
         </Suspense>
       </body>
