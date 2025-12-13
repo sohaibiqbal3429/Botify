@@ -1,11 +1,25 @@
-// 
+"use client"
 
-import React from 'react'
 
-const HELP = () => {
+import { useState } from "react";
+import ComingSoonModal from "../coins/ComingSoonModal";
+
+export default function Page() {
+  const [open, setOpen] = useState(false);
+
   return (
-    <div>HELP</div>
-  )
-}
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="rounded-lg bg-indigo-600 px-4 py-2 text-white"
+      >
+        Open Coming Soon
+      </button>
 
-export default HELP
+      <ComingSoonModal
+        isOpen={open}
+        onClose={() => setOpen(false)}
+      />
+    </>
+  );
+}
