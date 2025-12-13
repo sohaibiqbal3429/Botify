@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import { Sidebar } from "@/components/layout/sidebar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -115,8 +116,9 @@ export default function EWalletPage() {
 
   return (
     <div className="flex h-screen bg-background">
+      <Sidebar user={user} />
 
-      <main className="flex-1  overflow-auto">
+      <main className="flex-1 md:ml-64 overflow-auto">
         <div className="p-6">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-balance">E-Wallet</h1>
