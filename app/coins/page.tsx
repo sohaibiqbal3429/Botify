@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
 
-import { Sidebar } from "@/components/layout/sidebar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -186,9 +185,8 @@ export default function CoinsPage() {
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
-      <Sidebar user={user} />
 
-      <main className="flex-1 overflow-auto md:ml-64">
+      <main className="flex-1 overflow-auto ">
         <div className="px-6 py-12 lg:px-12">
           <div className="mx-auto flex max-w-5xl flex-col items-center text-center">
             <Badge

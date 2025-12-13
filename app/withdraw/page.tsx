@@ -1,7 +1,6 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
-import { Sidebar } from "@/components/layout/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { WithdrawForm } from "@/components/wallet/withdraw-form"
 import { verifyToken } from "@/lib/auth"
@@ -33,8 +32,7 @@ export default async function WithdrawPage() {
 
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar user={context.user} />
-      <main className="flex-1 overflow-y-auto md:ml-64">
+      <main className="flex-1 overflow-y-auto ">
         <div className="space-y-6 p-6">
           <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>

@@ -5,7 +5,6 @@ import { verifyToken } from "@/lib/auth"
 import { fetchWalletContext } from "@/lib/services/wallet"
 import { getMiningStatus } from "@/lib/services/mining"
 import { multiplyAmountByPercent } from "@/lib/utils/numeric"
-import { Sidebar } from "@/components/layout/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MiningWidget } from "@/components/dashboard/mining-widget"
 import { Badge } from "@/components/ui/badge"
@@ -48,9 +47,8 @@ export default async function MiningPage() {
 
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar user={walletContext.user} />
 
-      <main className="flex-1 md:ml-64 overflow-auto">
+      <main className="flex-1  overflow-auto">
         <div className="p-6 space-y-8">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-balance">Mint-Coin Mining</h1>
@@ -154,4 +152,3 @@ export default async function MiningPage() {
     </div>
   )
 }
-

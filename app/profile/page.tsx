@@ -5,7 +5,6 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { Sidebar } from "@/components/layout/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -308,9 +307,8 @@ export default function ProfilePage() {
 
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar user={user ?? undefined} />
 
-      <main className="flex-1 overflow-auto md:ml-64">
+      <main className="flex-1 overflow-auto ">
         <div className="p-6">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-balance">Profile Settings</h1>

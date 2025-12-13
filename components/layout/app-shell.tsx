@@ -70,10 +70,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-b from-slate-950 via-slate-950/95 to-slate-950 text-foreground">
+    <div className="flex min-h-screen min-w-0 bg-gradient-to-b from-slate-950 via-slate-950/95 to-slate-950 text-foreground">
       <Sidebar user={user ?? undefined} onLogout={handleLogout} isLoggingOut={isLoggingOut} />
 
-      <div className="flex min-h-screen flex-1 flex-col">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <AppHeader
           user={user ?? undefined}
           onLogout={handleLogout}
@@ -82,8 +82,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           menuButtonRef={anchorRef}
         />
 
-        <main className="relative flex-1 overflow-x-hidden px-3 pb-10 pt-4 md:px-6 lg:px-8 xl:px-10">
-          <div className="mx-auto w-full max-w-7xl space-y-6">{children}</div>
+        <main className="relative flex-1 w-full min-w-0 overflow-x-auto px-4 pb-10 pt-4 md:px-6 lg:px-8 xl:px-10">
+          <div className="w-full space-y-6">{children}</div>
         </main>
       </div>
 
