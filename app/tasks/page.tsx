@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Sidebar } from "@/components/layout/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -141,25 +140,21 @@ export default function TasksPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex min-h-[50vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar user={user} />
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold text-balance">Tasks & Rewards</h1>
+        <p className="text-muted-foreground">Complete tasks to earn bonus rewards</p>
+      </div>
 
-      <main className="flex-1 md:ml-64 overflow-auto">
-        <div className="p-6">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-balance">Tasks & Rewards</h1>
-            <p className="text-muted-foreground">Complete tasks to earn bonus rewards</p>
-          </div>
-
-          <div className="grid gap-6">
-            {tasks.map((task) => {
+      <div className="grid gap-6">
+        {tasks.map((task) => {
               const Icon = iconMap[task.type] ?? CheckCircle2
               const progressPercentage = task.target > 0 ? (task.progress / task.target) * 100 : 0
               const isCurrencyTask = currencyTaskTypes.has(task.type)
@@ -233,10 +228,8 @@ export default function TasksPage() {
                   </CardContent>
                 </Card>
               )
-            })}
-          </div>
-        </div>
-      </main>
+        })}
+      </div>
     </div>
   )
 }

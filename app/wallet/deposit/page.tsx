@@ -4,7 +4,6 @@ import { redirect } from "next/navigation"
 import { verifyToken } from "@/lib/auth"
 import { fetchWalletContext } from "@/lib/services/wallet"
 import { getDepositWalletOptions } from "@/lib/config/wallet"
-import { Sidebar } from "@/components/layout/sidebar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowDownLeft } from "lucide-react"
@@ -30,9 +29,8 @@ export default async function WalletDepositPage() {
 
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar user={context.user} />
 
-      <main className="flex-1 overflow-auto md:ml-64">
+      <main className="flex-1 overflow-auto ">
         <div className="p-6 space-y-6">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold">Deposit Funds</h1>

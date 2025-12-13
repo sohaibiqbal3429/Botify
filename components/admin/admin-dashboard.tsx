@@ -10,7 +10,6 @@ import {
   type FormEvent,
 } from "react"
 import { format } from "date-fns"
-import { Sidebar } from "@/components/layout/sidebar"
 import { TransactionTable, type TransactionFilters } from "@/components/admin/transaction-table"
 import { UserTable, type UserFilters } from "@/components/admin/user-table"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -1102,8 +1101,7 @@ export function AdminDashboard({ initialUser, initialStats, initialSettings, ini
 
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar user={user} />
-      <main className="flex-1 overflow-auto md:ml-64">
+      <main className="flex-1 overflow-auto ">
         <div className="space-y-5 px-4 py-4 sm:px-5 sm:py-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>

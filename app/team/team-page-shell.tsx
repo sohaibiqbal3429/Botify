@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import useSWR from "swr"
 
-import { Sidebar } from "@/components/layout/sidebar"
 import { TeamRewardsCard } from "@/components/team/team-rewards-card"
 import { TeamRewardsHistory, type TeamRewardHistoryEntry } from "@/components/team/team-rewards-history"
 import { LevelProgress } from "@/components/team/level-progress"
@@ -508,9 +507,8 @@ export default function TeamPageShell() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background md:flex-row">
-      <Sidebar user={sidebarUser} />
 
-      <main className="flex-1 overflow-auto md:ml-64">
+      <main className="flex-1 overflow-auto ">
         <div className="space-y-6 p-5 sm:p-6 lg:p-8">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-balance">Team Management</h1>
