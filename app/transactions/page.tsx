@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 
+import { Sidebar } from "@/components/layout/sidebar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -197,7 +198,9 @@ export default function TransactionsPage() {
 
   return (
     <div className="flex h-screen bg-background">
-      <main className="flex-1 overflow-auto">
+      <Sidebar user={user} />
+
+      <main className="flex-1 overflow-auto md:ml-64">
         <div className="p-6">
           <div className="mb-8 flex items-center justify-between">
             <div>
@@ -379,3 +382,4 @@ export default function TransactionsPage() {
     </div>
   )
 }
+
