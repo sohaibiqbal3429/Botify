@@ -33,7 +33,7 @@ export default async function DepositPage() {
     redirect("/auth/login")
   }
 
-  const session = verifyToken(token)
+  const session = await verifyToken(token)
   if (!session) {
     redirect("/auth/login")
   }
