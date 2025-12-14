@@ -26,7 +26,9 @@ interface DashboardData {
   }
   mining: {
     canMine: boolean
+    requiresDeposit: boolean
     nextEligibleAt: string
+    timeLeft?: number
     earnedInCycle: number
   }
   user: {
