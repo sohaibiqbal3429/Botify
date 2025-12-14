@@ -1,136 +1,118 @@
-import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
+"use client"
 
-import { verifyToken } from "@/lib/auth"
-import { fetchWalletContext } from "@/lib/services/wallet"
-import { getMiningStatus } from "@/lib/services/mining"
-import { multiplyAmountByPercent } from "@/lib/utils/numeric"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MiningWidget } from "@/components/dashboard/mining-widget"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Zap, Clock, Award } from "lucide-react"
+import { useState, useTransition } from "react"
+import { Button } from "@/components/ui/button"
+import { toast } from "@/components/ui/use-toast"
 
-export default async function MiningPage() {
-  const cookieStore = cookies()
-  const token = cookieStore.get("auth-token")?.value
-  if (!token) redirect("/auth/login")
+type MiningWidgetProps = {
+  mining: {
+    requiresDeposit: boolean
+  }
+}
 
-  const session = await verifyToken(token)
-  if (!session) redirect("/auth/login")
+export function MiningWidget({ mining }: MiningWidgetProps) {
+  const [loading, startTransition] = useTransition()
+  const [polling, setPolling] = useState(false)
 
-  const [walletContext, miningStatus] = await Promise.all([
-    fetchWalletContext(session.userId),
-    getMiningStatus(session.userId),
-  ])
+  async function pollStatus(statusUrl: string) {
+    const start = Date.now()
 
-  if (!walletContext) redirect("/auth/login")
+    while (Date.now() - start < 15_000) {
+      const res = await fetch(statusUrl, { cache: "no-store" })
+      const data = await res.json()
 
-  const totalClicks = miningStatus.totalClicks
-  const todayMined = miningStatus.earnedInCycle
-  const efficiency = Math.min(Math.round(miningStatus.userStats.roiProgress), 100)
+      if (data.status?.status === "completed") {
+        toast({
+          title: "✅ Mining rewarded",
+          description: "Your mining reward has been added successfully.",
+        })
+        setPolling(false)
+        return
+      }
 
-  const dailyProfitPercent = miningStatus.miningSettings.dailyProfitPercent
-  const dailyProfitPreview = multiplyAmountByPercent(100, dailyProfitPercent)
+      if (data.status?.status === "failed") {
+        toast({
+          variant: "destructive",
+          title: "Mining failed",
+          description: data.status?.error?.message || "Please try again",
+        })
+        setPolling(false)
+        return
+      }
+
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+
+    setPolling(false)
+    toast({
+      variant: "destructive",
+      title: "Timeout",
+      description: "Mining is taking too long. Please refresh.",
+    })
+  }
+
+  function handleMining() {
+    if (mining.requiresDeposit) {
+      toast({
+        variant: "destructive",
+        title: "Deposit required",
+        description: "Please deposit funds before mining.",
+      })
+      return
+    }
+
+    startTransition(async () => {
+      try {
+        setPolling(true)
+
+        const res = await fetch("/api/mining/click", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+
+        const data = await res.json()
+
+        // ✅ Direct success
+        if (res.status === 200 && data?.status?.status === "completed") {
+          toast({
+            title: "✅ Mining rewarded",
+            description: "Your mining reward has been added.",
+          })
+          setPolling(false)
+          return
+        }
+
+        // ✅ Queued → poll
+        if (res.status === 202 && data?.statusUrl) {
+          await pollStatus(data.statusUrl)
+          return
+        }
+
+        throw new Error(data?.error || "Unable to start mining")
+      } catch (err: any) {
+        setPolling(false)
+        toast({
+          variant: "destructive",
+          title: "Mining error",
+          description: err.message || "Something went wrong",
+        })
+      }
+    })
+  }
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-balance">Mint-Coin Mining</h1>
-        <p className="text-muted-foreground">Mine rewards daily and track your performance.</p>
-      </div>
+    <div className="rounded-xl border p-6 space-y-4">
+      <div className="text-lg font-semibold">Mining</div>
 
-      {/* Main widget */}
-      <MiningWidget mining={miningStatus} />
-
-      {/* Stats cards */}
-      <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Mined</CardTitle>
-            <Zap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalClicks}</div>
-            <p className="text-xs text-muted-foreground">Mining actions performed</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today&apos;s Mining</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${todayMined.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">Original</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">ROI Progress</CardTitle>
-            <Award className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{efficiency}%</div>
-            <p className="text-xs text-muted-foreground">Lowest</p>
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* Efficiency */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Mining Efficiency</CardTitle>
-          <CardDescription>Your current mining performance metrics</CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">ROI Progress</span>
-              <Badge
-                variant={
-                  efficiency >= 90 ? "default" : efficiency >= 70 ? "secondary" : "destructive"
-                }
-              >
-                {efficiency}%
-              </Badge>
-            </div>
-
-            <Progress value={efficiency} className="h-2" />
-
-            <p className="text-xs text-muted-foreground">
-              {efficiency >= 90
-                ? "Earning cap approaching. Consider reinvestment."
-                : efficiency >= 70
-                ? "Solid progress. Keep mining daily."
-                : "Grow your deposit or team to boost returns."}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-3">
-            <div className="rounded-lg bg-muted p-4 text-center">
-              <div className="text-lg font-semibold">{miningStatus.requiresDeposit ? "--" : "24h"}</div>
-              <div className="text-muted-foreground">Mining Uptime</div>
-            </div>
-
-            <div className="rounded-lg bg-muted p-4 text-center">
-              <div className="text-lg font-semibold">{dailyProfitPercent.toFixed(2)}%</div>
-              <div className="text-muted-foreground">
-                Daily profit • $100 → ${dailyProfitPreview.toFixed(2)}
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-muted p-4 text-center">
-              <div className="text-lg font-semibold">${walletContext.stats.currentBalance.toFixed(2)}</div>
-              <div className="text-muted-foreground">Available balance</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <Button
+        onClick={handleMining}
+        disabled={loading || polling}
+        className="w-full"
+      >
+        {loading || polling ? "Mining..." : "Start Mining"}
+      </Button>
     </div>
   )
 }
