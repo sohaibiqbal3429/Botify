@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import crypto from "node:crypto"
 
 import { getUserFromRequest } from "@/lib/auth"
 import { isRedisEnabled } from "@/lib/redis"
@@ -29,14 +30,10 @@ function buildStatusResponse(
   const headers: Record<string, string> = { "Cache-Control": "no-store" }
 
   if (status.status === "queued" || status.status === "processing") {
-    if (status.queueDepth !== undefined) {
-      headers["X-Queue-Depth"] = String(status.queueDepth)
-    }
+    if (status.queueDepth !== undefined) headers["X-Queue-Depth"] = String(status.queueDepth)
   } else if (status.status === "completed") {
     statusCode = 200
-    headers["Cache-Control"] = `private, max-age=0, s-maxage=${Math.floor(
-      MINING_STATUS_TTL_MS / 1000,
-    )}`
+    headers["Cache-Control"] = `private, max-age=0, s-maxage=${Math.floor(MINING_STATUS_TTL_MS / 1000)}`
   } else {
     statusCode = status.error?.retryable ? 503 : 409
     if (status.error?.retryAfterMs) {
@@ -49,10 +46,7 @@ function buildStatusResponse(
 
   return NextResponse.json(
     { status, statusUrl: statusUrl.toString() },
-    {
-      status: statusCode,
-      headers,
-    },
+    { status: statusCode, headers },
   )
 }
 
@@ -76,26 +70,23 @@ export async function POST(request: NextRequest) {
     return respond(rateDecision.response, { outcome: "rate_limited" })
   }
 
-  const idempotencyKey = request.headers.get("idempotency-key")?.trim()
-  if (!idempotencyKey) {
-    return respond(
-      NextResponse.json({ error: "Idempotency-Key header is required" }, { status: 400 }),
-      { outcome: "missing_idempotency" },
-    )
-  }
+  // ✅ FIX: If frontend didn’t send Idempotency-Key, generate one
+  let idempotencyKey =
+    request.headers.get("idempotency-key")?.trim() ||
+    request.headers.get("Idempotency-Key")?.trim() ||
+    ""
+  if (!idempotencyKey) idempotencyKey = crypto.randomUUID()
 
   const userPayload = getUserFromRequest(request)
   if (!userPayload) {
-    return respond(
-      NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-      { outcome: "unauthorized" },
-    )
+    return respond(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), {
+      outcome: "unauthorized",
+    })
   }
 
   const ip = getClientIp(request)
   const queueAvailable = isRedisEnabled() && isMiningQueueEnabled()
 
-  // Helper to perform mining immediately and return a completed status
   const processDirect = async (successOutcome: string) => {
     try {
       const requestedAt = new Date()
@@ -119,7 +110,6 @@ export async function POST(request: NextRequest) {
         queueDepth: 0,
         result: {
           ...result,
-          // This is what the UI should show when the user clicks "Start Mining"
           message: "Mining rewarded",
           completedAt: completedAt.toISOString(),
         },
@@ -128,24 +118,20 @@ export async function POST(request: NextRequest) {
       return respond(buildStatusResponse(status, request), { outcome: successOutcome })
     } catch (error) {
       if (error instanceof MiningActionError) {
-        return respond(
-          NextResponse.json({ error: error.message }, { status: error.status }),
-          { outcome: "mining_error" },
-        )
+        // return the real reason so UI can show it
+        return respond(NextResponse.json({ error: error.message }, { status: error.status }), {
+          outcome: "mining_error",
+        })
       }
 
       console.error("Mining click processing error", error)
       return respond(
-        NextResponse.json(
-          { error: "Unable to process mining request" },
-          { status: 500 },
-        ),
+        NextResponse.json({ error: "Unable to process mining request" }, { status: 500 }),
         { outcome: "processing_failure" },
       )
     }
   }
 
-  // If queue is disabled/unavailable, just process immediately.
   if (!queueAvailable) {
     return processDirect("completed_no_queue")
   }
@@ -158,7 +144,6 @@ export async function POST(request: NextRequest) {
         { outcome: "idempotency_conflict" },
       )
     }
-
     return respond(buildStatusResponse(existingStatus, request), { outcome: "duplicate" })
   }
 
@@ -172,7 +157,6 @@ export async function POST(request: NextRequest) {
 
     return respond(buildStatusResponse(enqueueResult.status, request), { outcome: "enqueued" })
   } catch (error) {
-    // Queue failed – fall back to processing immediately so the user still gets rewarded
     console.error("Mining click enqueue error, falling back to direct processing", error)
     return processDirect("completed_after_enqueue_failure")
   }
