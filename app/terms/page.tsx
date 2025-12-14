@@ -187,61 +187,21 @@ export default function TermsPage() {
             </Card>
 
             {/* 11 New Withdrawal Policy */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>11. Updated Withdrawal & Account Policy</CardTitle>
-              </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>
-                  From tonight after <strong>12 AM</strong>, only{" "}
-                  <strong>profit withdrawals</strong> will be allowed, with a minimum of{" "}
-                  <strong>30 USDT</strong>. <strong>Commission withdrawals</strong> will also be
-                  allowed.
-                </p>
-                <p className="mt-2">
-                  Besides this, we need some time because we are going to{" "}
-                  <strong>
-                    block the accounts of those users who have created more than one account
-                  </strong>
-                  . These users have forced us to impose strict policies to protect the system and
-                  maintain fairness.
-                </p>
-                <p className="mt-3">
-                  The final announcement of the new policy has been made. From{" "}
-                  <strong>12 AM</strong>, profit withdrawals will start, and the{" "}
-                  <strong>approval time will be 24 to 48 hours</strong>.
-                </p>
-                <p className="mt-2">
-                  If a withdrawal is <strong>rejected twice</strong> and the member does not
-                  resolve the stated reason, then on the <strong>third attempt</strong> the{" "}
-                  <strong>account will be blocked</strong>.
-                </p>
-              </CardContent>
-            </Card>
-
+          
             {/* 12 Contact (email + highlighted Telegram) */}
             <Card>
               <CardHeader>
-                <CardTitle>12. Contact Information</CardTitle>
+                <CardTitle>11. Contact Information</CardTitle>
               </CardHeader>
               <CardContent className="prose prose-sm max-w-none">
                 <p>For questions about these terms or the platform, please contact us at:</p>
                 <p>
                   <strong>Email:</strong>{" "}
-                  <a href="mailto:mintminepro@gmail.com">mintminepro@gmail.com</a>
+                  <a href="mailto:mintminepro@gmail.com">5gbotify@gmail.com</a>
                   <br />
                   <strong>Support:</strong> Available 24/7 through the platform
                   <br />
-                  {/* 🔥 Highlighted Telegram ID */}
-                  <strong>Telegram:</strong>{" "}
-                  <a
-                    href="https://t.me/GeorgeLiu87"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold text-primary"
-                  >
-                    @GeorgeLiu87
-                  </a>
+                
                 </p>
               </CardContent>
             </Card>
