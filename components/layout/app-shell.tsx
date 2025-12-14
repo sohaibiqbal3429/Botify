@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
-import { KnowledgeSidebar } from "@/components/layout/knowledge-sidebar"
 import { AppHeader } from "@/components/layout/app-header"
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer"
 import { Sidebar } from "@/components/layout/sidebar"
@@ -73,7 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen bg-gradient-to-b from-slate-950 via-slate-950/95 to-slate-950 text-foreground">
       <Sidebar user={user ?? undefined} onLogout={handleLogout} isLoggingOut={isLoggingOut} />
 
-      <div className="flex min-h-screen flex-1 flex-col min-w-0">
+      <div className="flex min-h-screen flex-1 min-w-0 flex-col">
         <AppHeader
           user={user ?? undefined}
           onLogout={handleLogout}
@@ -82,12 +81,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           menuButtonRef={anchorRef}
         />
 
-        <main className="relative flex-1 overflow-x-hidden px-3 pb-10 pt-4 md:px-6 lg:px-8 xl:px-10">
-          <div className="flex w-full min-w-0 flex-1 flex-col gap-6">{children}</div>
+        <main className="flex-1 min-w-0 w-full overflow-x-hidden px-3 pb-10 pt-4 md:px-6 lg:px-8 xl:px-10">
+          {children}
         </main>
       </div>
-
-      <KnowledgeSidebar />
 
       <MobileNavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} anchorRef={anchorRef} />
     </div>
