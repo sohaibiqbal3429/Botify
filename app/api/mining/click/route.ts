@@ -22,7 +22,6 @@ import { recordRequestLatency, trackRequestRate } from "@/lib/observability/requ
 function makeIdempotencyKey() {
   const g = globalThis as any
   if (g?.crypto?.randomUUID) return g.crypto.randomUUID()
-  // fallback (not cryptographically strong, but fine for idempotency)
   return `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`
 }
 
@@ -37,14 +36,12 @@ function buildStatusResponse(
   let statusCode = 202
   const headers: Record<string, string> = {
     "Cache-Control": "no-store",
-    "Idempotency-Key": status.idempotencyKey, // ✅ always return it
+    "Idempotency-Key": status.idempotencyKey, // always return it for client
     ...extraHeaders,
   }
 
   if (status.status === "queued" || status.status === "processing") {
-    if (status.queueDepth !== undefined) {
-      headers["X-Queue-Depth"] = String(status.queueDepth)
-    }
+    if (status.queueDepth !== undefined) headers["X-Queue-Depth"] = String(status.queueDepth)
   } else if (status.status === "completed") {
     statusCode = 200
     headers["Cache-Control"] = `private, max-age=0, s-maxage=${Math.floor(
@@ -81,13 +78,13 @@ export async function POST(request: NextRequest) {
     return response
   }
 
-  // Rate limit first
+  // 1) Rate limit
   const rateDecision = await enforceUnifiedRateLimit("backend", rateLimitContext, { path })
   if (!rateDecision.allowed && rateDecision.response) {
     return respond(rateDecision.response, { outcome: "rate_limited" })
   }
 
-  // Auth
+  // 2) Auth
   const userPayload = getUserFromRequest(request)
   if (!userPayload) {
     return respond(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), {
@@ -95,7 +92,7 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  // ✅ Accept either casing + auto-generate if missing
+  // 3) Idempotency key (accept both casings + auto-generate)
   let idempotencyKey =
     request.headers.get("idempotency-key")?.trim() ||
     request.headers.get("Idempotency-Key")?.trim() ||
@@ -105,6 +102,7 @@ export async function POST(request: NextRequest) {
   const ip = getClientIp(request)
   const queueAvailable = isRedisEnabled() && isMiningQueueEnabled()
 
+  // Helper: direct processing (no queue OR enqueue failure fallback)
   const processDirect = async (successOutcome: string) => {
     try {
       const requestedAt = new Date()
@@ -136,15 +134,14 @@ export async function POST(request: NextRequest) {
       return respond(buildStatusResponse(status, request), { outcome: successOutcome })
     } catch (error) {
       if (error instanceof MiningActionError) {
-        // ✅ send real reason to UI
         return respond(
           NextResponse.json(
             {
-              error: error.message,
-              code: error.code,
+              error: error.message, // return real reason
+              code: (error as any)?.code,
               retryable: (error as any)?.retryable,
             },
-            { status: error.status },
+            { status: error.status, headers: { "Idempotency-Key": idempotencyKey } },
           ),
           { outcome: "mining_error" },
         )
@@ -153,7 +150,7 @@ export async function POST(request: NextRequest) {
       console.error("Mining click processing error", error)
       return respond(
         NextResponse.json(
-          { error: "Unable to start mining. Please try again." },
+          { error: (error as any)?.message || "Unable to start mining. Please try again." },
           { status: 500, headers: { "Idempotency-Key": idempotencyKey } },
         ),
         { outcome: "processing_failure" },
@@ -161,12 +158,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // If queue disabled/unavailable -> direct
-  if (!queueAvailable) {
-    return processDirect("completed_no_queue")
-  }
+  // 4) If queue not available -> direct
+  if (!queueAvailable) return processDirect("completed_no_queue")
 
-  // If already exists, return it
+  // 5) If already exists -> return existing
   const existingStatus = await getMiningRequestStatus(idempotencyKey)
   if (existingStatus) {
     if (existingStatus.userId !== userPayload.userId) {
@@ -181,7 +176,7 @@ export async function POST(request: NextRequest) {
     return respond(buildStatusResponse(existingStatus, request), { outcome: "duplicate" })
   }
 
-  // Enqueue, fallback to direct if enqueue fails
+  // 6) Enqueue -> return statusUrl (client MUST poll it)
   try {
     const enqueueResult = await enqueueMiningRequest({
       userId: userPayload.userId,
@@ -190,7 +185,6 @@ export async function POST(request: NextRequest) {
       userAgent: request.headers.get("user-agent"),
     })
 
-    // ✅ Always return Idempotency-Key header for the client
     return respond(buildStatusResponse(enqueueResult.status, request), { outcome: "enqueued" })
   } catch (error) {
     console.error("Mining click enqueue error; falling back to direct processing", error)
