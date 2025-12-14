@@ -73,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen bg-gradient-to-b from-slate-950 via-slate-950/95 to-slate-950 text-foreground">
       <Sidebar user={user ?? undefined} onLogout={handleLogout} isLoggingOut={isLoggingOut} />
 
-      <div className="flex min-h-screen flex-1 flex-col">
+      <div className="flex min-h-screen flex-1 flex-col min-w-0">
         <AppHeader
           user={user ?? undefined}
           onLogout={handleLogout}
@@ -83,7 +83,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         />
 
         <main className="relative flex-1 overflow-x-hidden px-3 pb-10 pt-4 md:px-6 lg:px-8 xl:px-10">
-          <div className="mx-auto w-full max-w-7xl space-y-6">{children}</div>
+          <div className="flex w-full min-w-0 flex-1 flex-col gap-6">{children}</div>
         </main>
       </div>
 

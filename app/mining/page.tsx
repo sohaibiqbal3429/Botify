@@ -5,7 +5,6 @@ import { verifyToken } from "@/lib/auth"
 import { fetchWalletContext } from "@/lib/services/wallet"
 import { getMiningStatus } from "@/lib/services/mining"
 import { multiplyAmountByPercent } from "@/lib/utils/numeric"
-import { Sidebar } from "@/components/layout/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MiningWidget } from "@/components/dashboard/mining-widget"
 import { Badge } from "@/components/ui/badge"
@@ -47,55 +46,49 @@ export default async function MiningPage() {
   const dailyProfitPreview = multiplyAmountByPercent(100, dailyProfitPercent)
 
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar user={walletContext.user} />
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold text-balance">Mint-Coin Mining</h1>
+        <p className="text-muted-foreground">Mine rewards daily and track your performance.</p>
+      </div>
 
-      <main className="flex-1 md:ml-64 overflow-auto">
-        <div className="p-6 space-y-8">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-balance">Mint-Coin Mining</h1>
-            <p className="text-muted-foreground">
-              Mine rewards daily and track your performance.
-            </p>
-          </div>
+      <MiningWidget mining={miningStatus} />
 
-          <MiningWidget mining={miningStatus} />
+      {/* ---- Cards ---- */}
+      <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Mined</CardTitle>
+            <Zap className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{overviewStats.totalClicks}</div>
+            <p className="text-xs text-muted-foreground">Mining actions performed</p>
+          </CardContent>
+        </Card>
 
-          {/* ---- Cards ---- */}
-          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Mined</CardTitle>
-                <Zap className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{overviewStats.totalClicks}</div>
-                <p className="text-xs text-muted-foreground">Mining actions performed</p>
-              </CardContent>
-            </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Today&apos;s Mining</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${overviewStats.todayMined.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">Original</p>
+          </CardContent>
+        </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Today&apos;s Mining</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">${overviewStats.todayMined.toFixed(2)}</div>
-                <p className="text-xs text-muted-foreground">Original</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">ROI Progress</CardTitle>
-                <Award className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{overviewStats.efficiency}%</div>
-                <p className="text-xs text-muted-foreground">Lowest</p>
-              </CardContent>
-            </Card>
-          </section>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">ROI Progress</CardTitle>
+            <Award className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{overviewStats.efficiency}%</div>
+            <p className="text-xs text-muted-foreground">Lowest</p>
+          </CardContent>
+        </Card>
+      </section>
 
           {/* ---- Efficiency ---- */}
           <Card>
@@ -150,7 +143,7 @@ export default async function MiningPage() {
             </CardContent>
           </Card>
         </div>
-      </main>
+      </section>
     </div>
   )
 }
