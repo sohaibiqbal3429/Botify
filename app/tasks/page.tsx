@@ -1,24 +1,23 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Sidebar } from "@/components/layout/sidebar"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { useToast } from "@/components/ui/use-toast"
+import { formatCurrency } from "@/lib/utils/formatting"
 import {
   CheckCircle2,
   Clock,
-  Users,
   DollarSign,
   Loader2,
-  UserCheck,
-  Share2,
-  Wallet,
   Network,
+  Share2,
+  UserCheck,
+  Users,
+  Wallet,
 } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
-import { formatCurrency } from "@/lib/utils/formatting"
 import type { LucideIcon } from "lucide-react"
 
 interface Task {
@@ -141,102 +140,102 @@ export default function TasksPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex min-h-[50vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar user={user} />
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold text-balance">Tasks & Rewards</h1>
+        <p className="text-muted-foreground">Complete tasks to earn bonus rewards</p>
+      </div>
 
-      <main className="flex-1 md:ml-64 overflow-auto">
-        <div className="p-6">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-balance">Tasks & Rewards</h1>
-            <p className="text-muted-foreground">Complete tasks to earn bonus rewards</p>
-          </div>
+      <div className="grid gap-6">
+        {tasks.map((task) => {
+          const Icon = iconMap[task.type] ?? CheckCircle2
+          const progressPercentage = task.target > 0 ? (task.progress / task.target) * 100 : 0
+          const isCurrencyTask = currencyTaskTypes.has(task.type)
+          const formattedProgress = isCurrencyTask
+            ? `$${task.progress.toFixed(2)} / $${task.target.toFixed(2)}`
+            : `${task.progress} / ${task.target}`
 
-          <div className="grid gap-6">
-            {tasks.map((task) => {
-              const Icon = iconMap[task.type] ?? CheckCircle2
-              const progressPercentage = task.target > 0 ? (task.progress / task.target) * 100 : 0
-              const isCurrencyTask = currencyTaskTypes.has(task.type)
-              const formattedProgress = isCurrencyTask
-                ? `$${task.progress.toFixed(2)} / $${task.target.toFixed(2)}`
-                : `${task.progress} / ${task.target}`
-
-              return (
-                <Card key={task.id} className="relative">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-lg flex items-center justify-center">
-                          <Icon className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          {typeof task.level === "number" && (
-                            <Badge variant="outline" className="mb-1 text-xs uppercase tracking-wide">
-                              Level {task.level}
-                            </Badge>
-                          )}
-                          <CardTitle className="text-lg">{task.title}</CardTitle>
-                          <CardDescription>{task.description}</CardDescription>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-amber-600">+${task.reward}</div>
-                        <Badge variant={task.rewardClaimed ? "default" : task.completed ? "default" : "secondary"}>
-                          {task.rewardClaimed ? "Reward Claimed" : task.completed ? "Completed" : "In Progress"}
+          return (
+            <Card key={task.id} className="relative">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-amber-600">
+                      <Icon className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      {typeof task.level === "number" && (
+                        <Badge variant="outline" className="mb-1 text-xs uppercase tracking-wide">
+                          Level {task.level}
                         </Badge>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span>Progress</span>
-                        <span>{formattedProgress}</span>
-                      </div>
-                      <Progress value={progressPercentage} className="h-2" />
-                      {task.completed ? (
-                        <Button
-                          className="w-full"
-                          onClick={() => handleClaimReward(task.id)}
-                          disabled={task.rewardClaimed || claimingTaskId === task.id}
-                        >
-                          {task.rewardClaimed ? (
-                            <>
-                              <CheckCircle2 className="mr-2 h-4 w-4" />
-                              Reward Claimed
-                            </>
-                          ) : claimingTaskId === task.id ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Claiming...
-                            </>
-                          ) : (
-                            <>
-                              <DollarSign className="mr-2 h-4 w-4" />
-                              Claim Reward
-                            </>
-                          )}
-                        </Button>
-                      ) : (
-                        <Button variant="outline" className="w-full bg-transparent" disabled>
-                          <Clock className="mr-2 h-4 w-4" />
-                          Complete Task
-                        </Button>
                       )}
+                      <CardTitle className="text-lg">{task.title}</CardTitle>
+                      <CardDescription>{task.description}</CardDescription>
                     </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
-        </div>
-      </main>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-amber-600">+${task.reward}</div>
+                    <Badge variant={task.rewardClaimed ? "default" : task.completed ? "default" : "secondary"}>
+                      {task.rewardClaimed ? "Reward Claimed" : task.completed ? "Completed" : "In Progress"}
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Progress</span>
+                    <span>{formattedProgress}</span>
+                  </div>
+                  <Progress value={progressPercentage} className="h-2" />
+                  {task.completed ? (
+                    <Button
+                      className="w-full"
+                      onClick={() => handleClaimReward(task.id)}
+                      disabled={task.rewardClaimed || claimingTaskId === task.id}
+                    >
+                      {task.rewardClaimed ? (
+                        <>
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          Reward Claimed
+                        </>
+                      ) : claimingTaskId === task.id ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Claiming...
+                        </>
+                      ) : (
+                        <>
+                          <DollarSign className="mr-2 h-4 w-4" />
+                          Claim Reward
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Clock className="h-4 w-4" />
+                        <span>Keep progressing to complete this task.</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Network className="h-4 w-4" />
+                        <span>Progress updates every few minutes.</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
     </div>
   )
 }
