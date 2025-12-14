@@ -1,0 +1,355 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(0.13 0.01 250);
+  --foreground: oklch(0.96 0.008 255);
+  --card: oklch(0.17 0.01 250);
+  --card-foreground: oklch(0.94 0.008 255);
+  --popover: oklch(0.15 0.01 250);
+  --popover-foreground: oklch(0.94 0.008 255);
+  --primary: oklch(0.78 0.22 200);
+  --primary-foreground: oklch(0.08 0.01 250);
+  --accent: oklch(0.78 0.16 140);
+  --accent-foreground: oklch(0.08 0.01 250);
+  --secondary: oklch(0.22 0.01 250);
+  --secondary-foreground: oklch(0.9 0.008 250);
+  --muted: oklch(0.2 0.01 250);
+  --muted-foreground: oklch(0.74 0.014 250);
+  --destructive: oklch(0.55 0.19 30);
+  --destructive-foreground: oklch(0.96 0.01 250);
+  --border: oklch(0.24 0.01 250 / 0.72);
+  --input: oklch(0.24 0.01 250 / 0.8);
+  --ring: oklch(0.82 0.22 190);
+  --chart-1: oklch(0.82 0.22 190);
+  --chart-2: oklch(0.78 0.18 140);
+  --chart-3: oklch(0.72 0.16 60);
+  --chart-4: oklch(0.68 0.18 250);
+  --chart-5: oklch(0.7 0.15 320);
+  --radius: 0.85rem;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --t-fast: 160ms;
+  --t-med: 240ms;
+  --z-header: 100;
+  --z-dropdown: 900;
+  --z-modal: 1000;
+  --z-toast: 1100;
+  --z-loader: 1200;
+  --glass: 0 18px 44px rgba(4, 7, 16, 0.28);
+  --elev: 0 16px 36px rgba(8, 12, 20, 0.32);
+  --sidebar: oklch(0.14 0.01 250 / 0.9);
+  --sidebar-foreground: oklch(0.92 0.01 255);
+  --sidebar-primary: oklch(0.72 0.2 210);
+  --sidebar-primary-foreground: oklch(0.08 0.008 250);
+  --sidebar-accent: oklch(0.2 0.01 250 / 0.7);
+  --sidebar-accent-foreground: oklch(0.92 0.01 255);
+  --sidebar-border: oklch(0.22 0.01 250 / 0.7);
+  --sidebar-ring: oklch(0.78 0.2 190);
+}
+
+.dark {
+  --background: oklch(0.09 0.012 260);
+  --foreground: oklch(0.96 0.01 255);
+  --card: oklch(0.12 0.01 260);
+  --card-foreground: oklch(0.94 0.01 260);
+  --popover: oklch(0.1 0.01 260);
+  --popover-foreground: oklch(0.94 0.01 260);
+  --primary: oklch(0.82 0.22 190);
+  --primary-foreground: oklch(0.07 0.008 250);
+  --accent: oklch(0.82 0.18 140);
+  --accent-foreground: oklch(0.08 0.008 250);
+  --secondary: oklch(0.14 0.01 260);
+  --secondary-foreground: oklch(0.92 0.008 260);
+  --muted: oklch(0.15 0.01 250);
+  --muted-foreground: oklch(0.72 0.014 250);
+  --destructive: oklch(0.52 0.18 30);
+  --destructive-foreground: oklch(0.95 0.008 255);
+  --border: oklch(0.24 0.01 250 / 0.7);
+  --input: oklch(0.24 0.01 250 / 0.8);
+  --ring: oklch(0.86 0.22 180);
+  --chart-1: oklch(0.86 0.22 180);
+  --chart-2: oklch(0.82 0.18 140);
+  --chart-3: oklch(0.76 0.18 80);
+  --chart-4: oklch(0.7 0.16 250);
+  --chart-5: oklch(0.7 0.15 320);
+  --sidebar: oklch(0.08 0.012 260 / 0.92);
+  --sidebar-foreground: oklch(0.96 0.012 255);
+  --sidebar-primary: oklch(0.82 0.22 180);
+  --sidebar-primary-foreground: oklch(0.07 0.008 250);
+  --sidebar-accent: oklch(0.16 0.01 260 / 0.7);
+  --sidebar-accent-foreground: oklch(0.95 0.008 255);
+  --sidebar-border: oklch(0.2 0.01 250 / 0.7);
+  --sidebar-ring: oklch(0.86 0.18 170);
+}
+
+@theme inline {
+  /* optional: --font-sans, --font-serif, --font-mono if they are applied in the layout.tsx */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Added smooth transitions for better UX */
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+}
+
+html,
+body {
+  height: 100%;
+  min-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  transform: none !important;
+  zoom: 1 !important;
+}
+
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  width: 16rem;
+}
+
+.main-content {
+  margin-left: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.notification-panel {
+  position: fixed;
+  top: 80px;
+  right: 0 !important;
+  width: clamp(280px, 30vw, 380px);
+  max-height: 90vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.dashboard-grid {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  align-items: stretch;
+}
+
+.dashboard-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 260px;
+}
+
+.chart-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.bg-signal {
+  background: radial-gradient(circle at 20% 20%, oklch(0.2 0.03 190 / 0.18), transparent 22%),
+    radial-gradient(circle at 80% 10%, oklch(0.22 0.04 280 / 0.14), transparent 26%),
+    radial-gradient(circle at 60% 70%, oklch(0.22 0.02 110 / 0.12), transparent 20%),
+    linear-gradient(145deg, oklch(0.11 0.01 250), oklch(0.14 0.02 260));
+}
+
+.grid-overlay::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background-image: linear-gradient(90deg, oklch(0.26 0.01 250 / 0.07) 1px, transparent 1px),
+    linear-gradient(0deg, oklch(0.26 0.01 250 / 0.07) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(circle at center, black, transparent 70%);
+  pointer-events: none;
+}
+
+body {
+  font-feature-settings: "rlig" 1, "calt" 1;
+  background-image: radial-gradient(circle at 12% 20%, rgba(14, 165, 233, 0.12), transparent 28%),
+    radial-gradient(circle at 82% 0%, rgba(74, 222, 128, 0.14), transparent 24%),
+    linear-gradient(180deg, rgba(12, 18, 30, 0.9), rgba(8, 10, 18, 0.94));
+}
+
+:where(button, .button, .icon-btn, a, [role="button"]) {
+  transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
+}
+
+:where(button, .button, .icon-btn, a, [role="button"]):hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elev);
+}
+
+:where(button, .button, .icon-btn, a, [role="button"]):active {
+  transform: translateY(-1px) scale(0.98);
+}
+
+.popover {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease);
+}
+
+.popover.open {
+  opacity: 1;
+  transform: none;
+}
+
+/* from codex branch – keep richer transitions */
+:where([data-slot$="content"], [data-slot$="overlay"]) {
+  transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease);
+  will-change: opacity, transform;
+}
+
+[data-slot="card"] {
+  transition: transform var(--t-med) var(--ease), box-shadow var(--t-med) var(--ease), border-color var(--t-med) var(--ease), background-color var(--t-med) var(--ease);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.96));
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+[data-slot="card"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+[data-slot="card"]:active {
+  transform: translateY(-1px);
+}
+
+:where([data-slot="tabs-trigger"], [data-slot$="menu-item"], [data-slot$="select-item"], [data-slot$="command-item"], [role="menuitem"], [role="option"], [role="tab"]) {
+  transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+:where([data-slot="tabs-trigger"], [data-slot$="menu-item"], [data-slot$="select-item"], [data-slot$="command-item"], [role="menuitem"], [role="option"], [role="tab"]):hover {
+  transform: translateY(-1px);
+}
+
+:where([data-slot="tabs-trigger"], [data-slot$="menu-item"], [data-slot$="select-item"], [data-slot$="command-item"], [role="menuitem"], [role="option"], [role="tab"]):active {
+  transform: translateY(-0.5px) scale(0.99);
+}
+
+.u-transition {
+  transition: all var(--t-med) var(--ease);
+}
+
+.u-fade-in {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.u-fade-in.show {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Enhanced scrollbar with crypto theme colors */
+::-webkit-scrollbar { width: 8px; }
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--primary)));
+}
+
+/* Added crypto-themed animations and effects */
+@keyframes crypto-glow {
+  0%, 100% { box-shadow: 0 0 20px hsl(var(--primary) / 0.3); }
+  50% { box-shadow: 0 0 30px hsl(var(--primary) / 0.5), 0 0 40px hsl(var(--accent) / 0.3); }
+}
+
+@keyframes mining-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+
+.crypto-glow { animation: crypto-glow 3s ease-in-out infinite; }
+.mining-pulse { animation: mining-pulse 2s ease-in-out infinite; }
+
+/* Enhanced card hover effects for better interactivity */
+.crypto-card {
+  transition: all 0.3s ease;
+  border: 1px solid hsl(var(--border));
+}
+
+.crypto-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px hsl(var(--primary) / 0.15);
+  border-color: hsl(var(--primary) / 0.3);
+}
+
+/* Gradient text effects for crypto branding */
+.crypto-gradient-text {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
