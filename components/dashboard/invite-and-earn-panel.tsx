@@ -40,7 +40,7 @@ export function InviteAndEarnPanel({ referralCode = "CRYPTO123", activeInvites =
 
     if (navigator.share) {
       const sharePayload = {
-        title: "Join me on Mintmine Pro",
+        title: "Join me on 5gBotify!",
         text: `Use my referral code ${referralCode} to start mining and earn rewards together!`,
         url: referralLink,
       }

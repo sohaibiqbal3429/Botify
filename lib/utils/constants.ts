@@ -1,6 +1,6 @@
 // Application constants
 export const APP_CONFIG = {
-  name: "Mintmine Pro",
+  name: "5gBotify",
   description: "Advanced cryptocurrency mining platform",
   version: "1.0.0",
   supportEmail: "Mintminepro@gmail.com",

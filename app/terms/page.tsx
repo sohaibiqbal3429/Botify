@@ -50,11 +50,11 @@ export default function TermsPage() {
             {/* 1 */}
             <Card className="w-full">
               <CardHeader>
-                <CardTitle>1. What is MintMine Pro?</CardTitle>
+                <CardTitle>1. What is 5gBotify?</CardTitle>
               </CardHeader>
               <CardContent className="prose prose-sm max-w-none">
                 <p>
-                  MintMine Pro is a digital mining platform that allows users to earn daily profits
+                  5gbotify is a digital mining platform that allows users to earn daily profits
                   through secure and automated crypto mining. It’s designed for both beginners and
                   professionals to grow their digital income safely.
                 </p>
@@ -64,7 +64,7 @@ export default function TermsPage() {
             {/* 2 */}
             <Card className="w-full">
               <CardHeader>
-                <CardTitle>2. How do I start mining on MintMine Pro?</CardTitle>
+                <CardTitle>2. How do I start earning on 5gBotify?</CardTitle>
               </CardHeader>
               <CardContent className="prose prose-sm max-w-none">
                 <p>
@@ -126,7 +126,7 @@ export default function TermsPage() {
               </CardHeader>
               <CardContent className="prose prose-sm max-w-none">
                 <p>
-                  No. Joining MintMine Pro is completely free. You only need to deposit funds to
+                  No. Joining 5gBotify is completely free. You only need to deposit funds to
                   start your mining plan.
                 </p>
               </CardContent>
@@ -153,7 +153,7 @@ export default function TermsPage() {
               </CardHeader>
               <CardContent className="prose prose-sm max-w-none">
                 <p>
-                  MintMine Pro supports <strong>USDT (BEP-20)</strong> and other popular crypto
+                  5gBotify supports <strong>USDT (BEP-20)</strong> and other popular crypto
                   wallets. You can deposit and withdraw funds using these methods easily.
                 </p>
               </CardContent>
@@ -179,7 +179,7 @@ export default function TermsPage() {
               </CardHeader>
               <CardContent className="prose prose-sm max-w-none">
                 <p>
-                  If you encounter any problem or delay, please contact the MintMine Pro support
+                  If you encounter any problem or delay, please contact the 5gbotify support
                   team through the <strong>“Help”</strong> or <strong>“Contact Us”</strong> section
                   in your dashboard for quick assistance.
                 </p>

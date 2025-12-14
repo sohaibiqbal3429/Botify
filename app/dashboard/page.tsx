@@ -160,7 +160,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-emerald-200">Ops status</p>
-                  <p className="text-sm text-slate-300">Backend parity with MintMine Pro, new skin for 5gbotify.</p>
+                  <p className="text-sm text-slate-300">Backend parity with Crypto , new skin for 5gbotify.</p>
                 </div>
                 <span className="rounded-md bg-emerald-500/20 px-3 py-1 text-[11px] font-semibold uppercase text-emerald-100">
                   synced
