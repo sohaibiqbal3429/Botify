@@ -21,40 +21,52 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
   async function pollStatus(statusUrl: string) {
     const start = Date.now()
 
-    while (Date.now() - start < 15_000) {
-      const res = await fetch(statusUrl, { cache: "no-store" })
-      const data = await res.json()
+    try {
+      while (Date.now() - start < 15_000) {
+        const res = await fetch(statusUrl, { cache: "no-store", credentials: "include" })
 
-      if (data.status?.status === "completed") {
-        toast({
-          title: "✅ Mining rewarded",
-          description: "Your mining reward has been added successfully.",
-        })
-        await onMiningSuccess?.()
-        setPolling(false)
-        return
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          const message = body?.error || "Unable to fetch mining status"
+          throw new Error(message)
+        }
+
+        const data = await res.json()
+
+        if (data.status?.status === "completed") {
+          toast({
+            title: "✅ Mining rewarded",
+            description: "Your mining reward has been added successfully.",
+          })
+          await onMiningSuccess?.()
+          setPolling(false)
+          return
+        }
+
+        if (data.status?.status === "failed") {
+          toast({
+            variant: "destructive",
+            title: "Mining failed",
+            description: data.status?.error?.message || "Please try again",
+          })
+          await onMiningSuccess?.()
+          setPolling(false)
+          return
+        }
+
+        await new Promise((r) => setTimeout(r, 1000))
       }
 
-      if (data.status?.status === "failed") {
-        toast({
-          variant: "destructive",
-          title: "Mining failed",
-          description: data.status?.error?.message || "Please try again",
-        })
-        await onMiningSuccess?.()
-        setPolling(false)
-        return
-      }
-
-      await new Promise((r) => setTimeout(r, 1000))
+      throw new Error("Mining is taking too long. Please refresh.")
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Mining status error",
+        description: error?.message || "Unable to get mining progress.",
+      })
+    } finally {
+      setPolling(false)
     }
-
-    setPolling(false)
-    toast({
-      variant: "destructive",
-      title: "Timeout",
-      description: "Mining is taking too long. Please refresh.",
-    })
   }
 
   function handleMining() {
