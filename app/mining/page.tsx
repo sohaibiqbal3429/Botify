@@ -44,17 +44,20 @@ export default async function MiningPage() {
 
   const dailyProfitPercent = miningStatus.miningSettings.dailyProfitPercent
   const dailyProfitPreview = multiplyAmountByPercent(100, dailyProfitPercent)
-
   return (
     <div className="space-y-8">
+      {/* Header */}
       <div className="space-y-2">
         <h1 className="text-3xl font-bold text-balance">Mint-Coin Mining</h1>
-        <p className="text-muted-foreground">Mine rewards daily and track your performance.</p>
+        <p className="text-muted-foreground">
+          Mine rewards daily and track your performance.
+        </p>
       </div>
 
+      {/* Main widget */}
       <MiningWidget mining={miningStatus} />
 
-      {/* ---- Cards ---- */}
+      {/* Stats cards */}
       <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -73,7 +76,9 @@ export default async function MiningPage() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${overviewStats.todayMined.toFixed(2)}</div>
+            <div className="text-2xl font-bold">
+              ${overviewStats.todayMined.toFixed(2)}
+            </div>
             <p className="text-xs text-muted-foreground">Original</p>
           </CardContent>
         </Card>
@@ -90,61 +95,69 @@ export default async function MiningPage() {
         </Card>
       </section>
 
-          {/* ---- Efficiency ---- */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Mining Efficiency</CardTitle>
-              <CardDescription>Your current mining performance metrics</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">ROI Progress</span>
-                  <Badge
-                    variant={
-                      overviewStats.efficiency >= 90
-                        ? "default"
-                        : overviewStats.efficiency >= 70
-                        ? "secondary"
-                        : "destructive"
-                    }
-                  >
-                    {overviewStats.efficiency}%
-                  </Badge>
-                </div>
-                <Progress value={overviewStats.efficiency} className="h-2" />
-                <p className="text-xs text-muted-foreground">
-                  {overviewStats.efficiency >= 90
-                    ? "Earning cap approaching. Consider preparing for reinvestment."
-                    : overviewStats.efficiency >= 70
-                    ? "Solid progress. Keep mining daily."
-                    : "Grow your deposit or team to boost returns."}
-                </p>
-              </div>
+      {/* Efficiency */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Mining Efficiency</CardTitle>
+          <CardDescription>
+            Your current mining performance metrics
+          </CardDescription>
+        </CardHeader>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div className="text-center p-4 bg-muted rounded-lg">
-                  <div className="font-semibold text-lg">
-                    {miningStatus.requiresDeposit ? "--" : "24h"}
-                  </div>
-                  <div className="text-muted-foreground">Mining Uptime</div>
-                </div>
-                <div className="text-center p-4 bg-muted rounded-lg">
-                  <div className="font-semibold text-lg">{dailyProfitPercent.toFixed(2)}%</div>
-                  <div className="text-muted-foreground">Daily profit • $100 → ${dailyProfitPreview.toFixed(2)}</div>
-                </div>
-                <div className="text-center p-4 bg-muted rounded-lg">
-                  <div className="font-semibold text-lg">
-                    ${walletContext.stats.currentBalance.toFixed(2)}
-                  </div>
-                  <div className="text-muted-foreground">Available balance</div>
-                </div>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">ROI Progress</span>
+              <Badge
+                variant={
+                  overviewStats.efficiency >= 90
+                    ? "default"
+                    : overviewStats.efficiency >= 70
+                    ? "secondary"
+                    : "destructive"
+                }
+              >
+                {overviewStats.efficiency}%
+              </Badge>
+            </div>
+
+            <Progress value={overviewStats.efficiency} className="h-2" />
+
+            <p className="text-xs text-muted-foreground">
+              {overviewStats.efficiency >= 90
+                ? "Earning cap approaching. Consider reinvestment."
+                : overviewStats.efficiency >= 70
+                ? "Solid progress. Keep mining daily."
+                : "Grow your deposit or team to boost returns."}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <div className="font-semibold text-lg">
+                {miningStatus.requiresDeposit ? "--" : "24h"}
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
+              <div className="text-muted-foreground">Mining Uptime</div>
+            </div>
+
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <div className="font-semibold text-lg">
+                {dailyProfitPercent.toFixed(2)}%
+              </div>
+              <div className="text-muted-foreground">
+                Daily profit • $100 → ${dailyProfitPreview.toFixed(2)}
+              </div>
+            </div>
+
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <div className="font-semibold text-lg">
+                ${walletContext.stats.currentBalance.toFixed(2)}
+              </div>
+              <div className="text-muted-foreground">Available balance</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
-
