@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import crypto from "node:crypto"
 
 import { getUserFromRequest } from "@/lib/auth"
 import { isRedisEnabled } from "@/lib/redis"
@@ -19,21 +18,38 @@ import {
 } from "@/lib/rate-limit/unified"
 import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
 
+// Works in Node + Edge-like runtimes (no node:crypto import)
+function makeIdempotencyKey() {
+  const g = globalThis as any
+  if (g?.crypto?.randomUUID) return g.crypto.randomUUID()
+  // fallback (not cryptographically strong, but fine for idempotency)
+  return `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`
+}
+
 function buildStatusResponse(
   status: MiningRequestStatus,
   request: NextRequest,
+  extraHeaders: Record<string, string> = {},
 ): NextResponse<{ status: MiningRequestStatus; statusUrl: string }> {
   const statusUrl = new URL("/api/mining/click/status", request.url)
   statusUrl.searchParams.set("key", status.idempotencyKey)
 
   let statusCode = 202
-  const headers: Record<string, string> = { "Cache-Control": "no-store" }
+  const headers: Record<string, string> = {
+    "Cache-Control": "no-store",
+    "Idempotency-Key": status.idempotencyKey, // ✅ always return it
+    ...extraHeaders,
+  }
 
   if (status.status === "queued" || status.status === "processing") {
-    if (status.queueDepth !== undefined) headers["X-Queue-Depth"] = String(status.queueDepth)
+    if (status.queueDepth !== undefined) {
+      headers["X-Queue-Depth"] = String(status.queueDepth)
+    }
   } else if (status.status === "completed") {
     statusCode = 200
-    headers["Cache-Control"] = `private, max-age=0, s-maxage=${Math.floor(MINING_STATUS_TTL_MS / 1000)}`
+    headers["Cache-Control"] = `private, max-age=0, s-maxage=${Math.floor(
+      MINING_STATUS_TTL_MS / 1000,
+    )}`
   } else {
     statusCode = status.error?.retryable ? 503 : 409
     if (status.error?.retryAfterMs) {
@@ -65,24 +81,26 @@ export async function POST(request: NextRequest) {
     return response
   }
 
+  // Rate limit first
   const rateDecision = await enforceUnifiedRateLimit("backend", rateLimitContext, { path })
   if (!rateDecision.allowed && rateDecision.response) {
     return respond(rateDecision.response, { outcome: "rate_limited" })
   }
 
-  // ✅ FIX: If frontend didn’t send Idempotency-Key, generate one
-  let idempotencyKey =
-    request.headers.get("idempotency-key")?.trim() ||
-    request.headers.get("Idempotency-Key")?.trim() ||
-    ""
-  if (!idempotencyKey) idempotencyKey = crypto.randomUUID()
-
+  // Auth
   const userPayload = getUserFromRequest(request)
   if (!userPayload) {
     return respond(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), {
       outcome: "unauthorized",
     })
   }
+
+  // ✅ Accept either casing + auto-generate if missing
+  let idempotencyKey =
+    request.headers.get("idempotency-key")?.trim() ||
+    request.headers.get("Idempotency-Key")?.trim() ||
+    ""
+  if (!idempotencyKey) idempotencyKey = makeIdempotencyKey()
 
   const ip = getClientIp(request)
   const queueAvailable = isRedisEnabled() && isMiningQueueEnabled()
@@ -110,7 +128,7 @@ export async function POST(request: NextRequest) {
         queueDepth: 0,
         result: {
           ...result,
-          message: "Mining rewarded",
+          message: result.message || "Mining rewarded",
           completedAt: completedAt.toISOString(),
         },
       }
@@ -118,35 +136,52 @@ export async function POST(request: NextRequest) {
       return respond(buildStatusResponse(status, request), { outcome: successOutcome })
     } catch (error) {
       if (error instanceof MiningActionError) {
-        // return the real reason so UI can show it
-        return respond(NextResponse.json({ error: error.message }, { status: error.status }), {
-          outcome: "mining_error",
-        })
+        // ✅ send real reason to UI
+        return respond(
+          NextResponse.json(
+            {
+              error: error.message,
+              code: error.code,
+              retryable: (error as any)?.retryable,
+            },
+            { status: error.status },
+          ),
+          { outcome: "mining_error" },
+        )
       }
 
       console.error("Mining click processing error", error)
       return respond(
-        NextResponse.json({ error: "Unable to process mining request" }, { status: 500 }),
+        NextResponse.json(
+          { error: "Unable to start mining. Please try again." },
+          { status: 500, headers: { "Idempotency-Key": idempotencyKey } },
+        ),
         { outcome: "processing_failure" },
       )
     }
   }
 
+  // If queue disabled/unavailable -> direct
   if (!queueAvailable) {
     return processDirect("completed_no_queue")
   }
 
+  // If already exists, return it
   const existingStatus = await getMiningRequestStatus(idempotencyKey)
   if (existingStatus) {
     if (existingStatus.userId !== userPayload.userId) {
       return respond(
-        NextResponse.json({ error: "Idempotency key belongs to another user" }, { status: 409 }),
+        NextResponse.json(
+          { error: "Idempotency key belongs to another user" },
+          { status: 409, headers: { "Idempotency-Key": idempotencyKey } },
+        ),
         { outcome: "idempotency_conflict" },
       )
     }
     return respond(buildStatusResponse(existingStatus, request), { outcome: "duplicate" })
   }
 
+  // Enqueue, fallback to direct if enqueue fails
   try {
     const enqueueResult = await enqueueMiningRequest({
       userId: userPayload.userId,
@@ -155,9 +190,10 @@ export async function POST(request: NextRequest) {
       userAgent: request.headers.get("user-agent"),
     })
 
+    // ✅ Always return Idempotency-Key header for the client
     return respond(buildStatusResponse(enqueueResult.status, request), { outcome: "enqueued" })
   } catch (error) {
-    console.error("Mining click enqueue error, falling back to direct processing", error)
+    console.error("Mining click enqueue error; falling back to direct processing", error)
     return processDirect("completed_after_enqueue_failure")
   }
 }
