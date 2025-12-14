@@ -10,7 +10,6 @@ import {
   type FormEvent,
 } from "react"
 import { format } from "date-fns"
-import { Sidebar } from "@/components/layout/sidebar"
 import { TransactionTable, type TransactionFilters } from "@/components/admin/transaction-table"
 import { UserTable, type UserFilters } from "@/components/admin/user-table"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -1101,19 +1100,17 @@ export function AdminDashboard({ initialUser, initialStats, initialSettings, ini
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar user={user} />
-      <main className="flex-1 overflow-auto md:ml-64">
-        <div className="space-y-5 px-4 py-4 sm:px-5 sm:py-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold">Admin Panel</h1>
-              <p className="text-sm text-muted-foreground">Monitor platform performance and review user activity.</p>
-            </div>
-            <Button onClick={refreshAll} variant="secondary" className="gap-2" disabled={transactionLoading || userLoading}>
-              {transactionLoading || userLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Refresh
-            </Button>
+    <div className="flex w-full min-w-0 flex-col space-y-5">
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Admin Panel</h1>
+            <p className="text-sm text-muted-foreground">Monitor platform performance and review user activity.</p>
           </div>
+          <Button onClick={refreshAll} variant="secondary" className="gap-2" disabled={transactionLoading || userLoading}>
+            {transactionLoading || userLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Refresh
+          </Button>
+        </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <StatCard label="Total users" value={stats.totalUsers} />
@@ -1447,8 +1444,7 @@ export function AdminDashboard({ initialUser, initialStats, initialSettings, ini
             filters={userFilters}
             onFiltersChange={handleUserFiltersChange}
           />
-        </div>
-      </main>
+      </div>
     </div>
   )
 }

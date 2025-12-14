@@ -5,7 +5,6 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { Sidebar } from "@/components/layout/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -307,31 +306,27 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar user={user ?? undefined} />
+    <div className="flex w-full min-w-0 flex-col gap-8 p-6">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold text-balance">Profile Settings</h1>
+        <p className="text-muted-foreground">Manage your account information and security</p>
+      </div>
 
-      <main className="flex-1 overflow-auto md:ml-64">
-        <div className="p-6">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-balance">Profile Settings</h1>
-            <p className="text-muted-foreground">Manage your account information and security</p>
-          </div>
+      {globalError && (
+        <Alert variant="destructive">
+          <AlertDescription>{globalError}</AlertDescription>
+        </Alert>
+      )}
 
-          {globalError && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertDescription>{globalError}</AlertDescription>
-            </Alert>
-          )}
+      {isBlocked && (
+        <Alert className="border-orange-200 bg-orange-50 text-orange-900">
+          <AlertDescription>
+            Your account is currently blocked. Contact support for assistance before requesting deposits or withdrawals.
+          </AlertDescription>
+        </Alert>
+      )}
 
-          {isBlocked && (
-            <Alert className="mb-6 border-orange-200 bg-orange-50 text-orange-900">
-              <AlertDescription>
-                Your account is currently blocked. Contact support for assistance before requesting deposits or withdrawals.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <Card className="lg:col-span-1">
               <CardHeader className="text-center">
                 <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center">
@@ -751,8 +746,6 @@ export default function ProfilePage() {
               </Tabs>
             </div>
           </div>
-        </div>
-      </main>
     </div>
   )
 }
