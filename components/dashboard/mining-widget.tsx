@@ -7,10 +7,14 @@ import { toast } from "@/components/ui/use-toast"
 type MiningWidgetProps = {
   mining: {
     requiresDeposit: boolean
+    canMine?: boolean
+    timeLeft?: number
+    nextEligibleAt?: string | null
   }
+  onMiningSuccess?: () => void | Promise<void>
 }
 
-export function MiningWidget({ mining }: MiningWidgetProps) {
+export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
   const [loading, startTransition] = useTransition()
   const [polling, setPolling] = useState(false)
 
@@ -26,6 +30,7 @@ export function MiningWidget({ mining }: MiningWidgetProps) {
           title: "✅ Mining rewarded",
           description: "Your mining reward has been added successfully.",
         })
+        await onMiningSuccess?.()
         setPolling(false)
         return
       }
@@ -36,6 +41,7 @@ export function MiningWidget({ mining }: MiningWidgetProps) {
           title: "Mining failed",
           description: data.status?.error?.message || "Please try again",
         })
+        await onMiningSuccess?.()
         setPolling(false)
         return
       }
@@ -61,6 +67,21 @@ export function MiningWidget({ mining }: MiningWidgetProps) {
       return
     }
 
+    if (mining.canMine === false) {
+      const nextTime = mining.nextEligibleAt
+        ? new Date(mining.nextEligibleAt).toLocaleString()
+        : null
+
+      toast({
+        variant: "destructive",
+        title: "Mining cooldown active",
+        description:
+          nextTime ||
+          (mining.timeLeft ? `Try again in ${Math.max(1, Math.ceil(mining.timeLeft / 60))} minutes.` : "Please try again later."),
+      })
+      return
+    }
+
     startTransition(async () => {
       try {
         setPolling(true)
@@ -70,6 +91,7 @@ export function MiningWidget({ mining }: MiningWidgetProps) {
           headers: {
             "Content-Type": "application/json",
           },
+          credentials: "include",
         })
 
         const data = await res.json()
@@ -80,6 +102,7 @@ export function MiningWidget({ mining }: MiningWidgetProps) {
             title: "✅ Mining rewarded",
             description: "Your mining reward has been added.",
           })
+          await onMiningSuccess?.()
           setPolling(false)
           return
         }
