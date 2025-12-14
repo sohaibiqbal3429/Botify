@@ -102,23 +102,7 @@ export default function TermsPage() {
               </CardContent>
             </Card>
 
-            {/* 5 */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>5. How does the referral bonus system work?</CardTitle>
-              </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>
-                  When you refer someone who deposits <strong>30 USDT</strong> or more, you receive
-                  a <strong>15% bonus</strong> instantly as a depositor reward.
-                </p>
-                <p className="mt-2">
-                  <em>Example:</em> If your referral deposits <strong>100 USDT</strong>, you earn{" "}
-                  <strong>15 USDT</strong> directly into your account.
-                </p>
-              </CardContent>
-            </Card>
-
+          
             {/* 6 */}
             <Card className="w-full">
               <CardHeader>
