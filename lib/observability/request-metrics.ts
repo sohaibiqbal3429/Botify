@@ -1,5 +1,18 @@
 import { incrementCounter, recordGauge, type MetricTags } from "@/lib/observability/metrics"
 
+const OBSERVABILITY_DISABLED_IN_BROWSER =
+  (process.env.NEXT_PUBLIC_DISABLE_OBSERVABILITY_IN_BROWSER ??
+    process.env.DISABLE_OBSERVABILITY_IN_BROWSER ??
+    (process.env.NODE_ENV !== "production" ? "true" : "false"))
+    .toString()
+    .toLowerCase()
+    .trim() === "true"
+
+function shouldSkipObservability(): boolean {
+  if (typeof window === "undefined") return false
+  return OBSERVABILITY_DISABLED_IN_BROWSER
+}
+
 interface LayerMetrics {
   hits: number[]
   latencies: number[]
@@ -44,6 +57,8 @@ function getLayerState(layer: string): LayerMetrics {
 }
 
 export function trackRequestRate(layer: string, tags: MetricTags = {}): void {
+  if (shouldSkipObservability()) return
+
   const now = Date.now()
   const layerState = getLayerState(layer)
   layerState.hits = layerState.hits.filter((ts) => now - ts < ONE_SECOND_MS)
@@ -53,6 +68,8 @@ export function trackRequestRate(layer: string, tags: MetricTags = {}): void {
 }
 
 export function recordThrottleHit(layer: string, scope: string, tags: MetricTags = {}): void {
+  if (shouldSkipObservability()) return
+
   const now = Date.now()
   const layerState = getLayerState(layer)
   layerState.throttles = layerState.throttles.filter((ts) => now - ts < THROTTLE_WINDOW_MS)
@@ -62,6 +79,8 @@ export function recordThrottleHit(layer: string, scope: string, tags: MetricTags
 }
 
 export function recordRequestLatency(layer: string, durationMs: number, tags: MetricTags = {}): void {
+  if (shouldSkipObservability()) return
+
   if (!Number.isFinite(durationMs) || durationMs < 0) {
     return
   }
@@ -89,6 +108,8 @@ export interface RateLimitLayerSnapshot {
 }
 
 export function getRateLimitTelemetrySnapshot(options: { windowMs?: number } = {}): RateLimitLayerSnapshot[] {
+  if (shouldSkipObservability()) return []
+
   const now = Date.now()
   const { windowMs = THROTTLE_WINDOW_MS } = options
   const state = getState()
