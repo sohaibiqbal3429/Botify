@@ -1,5 +1,8 @@
 import { incrementCounter, recordGauge, type MetricTags } from "@/lib/observability/metrics"
 
+const IS_BROWSER = typeof window !== "undefined"
+
+// ✅ Default: dev me browser observability OFF
 const OBSERVABILITY_DISABLED_IN_BROWSER =
   (process.env.NEXT_PUBLIC_DISABLE_OBSERVABILITY_IN_BROWSER ??
     process.env.DISABLE_OBSERVABILITY_IN_BROWSER ??
@@ -8,9 +11,10 @@ const OBSERVABILITY_DISABLED_IN_BROWSER =
     .toLowerCase()
     .trim() === "true"
 
+// ✅ Hard guard: browser me kabhi metrics nahi
 function shouldSkipObservability(): boolean {
-  if (typeof window === "undefined") return false
-  return OBSERVABILITY_DISABLED_IN_BROWSER
+  if (IS_BROWSER) return true
+  return false
 }
 
 interface LayerMetrics {
@@ -35,14 +39,9 @@ type GlobalWithMetrics = typeof globalThis & {
 function getState(): RequestMetricsState {
   const globalScope = globalThis as GlobalWithMetrics
   const existing = globalScope.__REQUEST_METRICS_STATE__
-  if (existing) {
-    return existing
-  }
+  if (existing) return existing
 
-  const initial: RequestMetricsState = {
-    layers: new Map<string, LayerMetrics>(),
-  }
-
+  const initial: RequestMetricsState = { layers: new Map<string, LayerMetrics>() }
   globalScope.__REQUEST_METRICS_STATE__ = initial
   return initial
 }
@@ -57,6 +56,7 @@ function getLayerState(layer: string): LayerMetrics {
 }
 
 export function trackRequestRate(layer: string, tags: MetricTags = {}): void {
+  // ✅ Never run in browser
   if (shouldSkipObservability()) return
 
   const now = Date.now()
@@ -68,6 +68,7 @@ export function trackRequestRate(layer: string, tags: MetricTags = {}): void {
 }
 
 export function recordThrottleHit(layer: string, scope: string, tags: MetricTags = {}): void {
+  // ✅ Never run in browser
   if (shouldSkipObservability()) return
 
   const now = Date.now()
@@ -79,16 +80,13 @@ export function recordThrottleHit(layer: string, scope: string, tags: MetricTags
 }
 
 export function recordRequestLatency(layer: string, durationMs: number, tags: MetricTags = {}): void {
+  // ✅ Never run in browser
   if (shouldSkipObservability()) return
 
-  if (!Number.isFinite(durationMs) || durationMs < 0) {
-    return
-  }
+  if (!Number.isFinite(durationMs) || durationMs < 0) return
 
   const layerState = getLayerState(layer)
-  if (layerState.latencies.length >= MAX_LATENCY_SAMPLES) {
-    layerState.latencies.shift()
-  }
+  if (layerState.latencies.length >= MAX_LATENCY_SAMPLES) layerState.latencies.shift()
   layerState.latencies.push(durationMs)
 
   const sorted = [...layerState.latencies].sort((a, b) => a - b)
@@ -107,7 +105,12 @@ export interface RateLimitLayerSnapshot {
   p95LatencyMs: number | null
 }
 
-export function getRateLimitTelemetrySnapshot(options: { windowMs?: number } = {}): RateLimitLayerSnapshot[] {
+export function getRateLimitTelemetrySnapshot(
+  options: { windowMs?: number } = {},
+): RateLimitLayerSnapshot[] {
+  // ✅ Browser: always return empty
+  if (IS_BROWSER) return []
+  // ✅ Server: ok
   if (shouldSkipObservability()) return []
 
   const now = Date.now()
