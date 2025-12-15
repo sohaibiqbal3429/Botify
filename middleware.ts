@@ -5,7 +5,24 @@ import { enforceUnifiedRateLimit, getRateLimitContext, shouldBypassRateLimit } f
 import { trackRequestRate } from "@/lib/observability/request-metrics"
 
 export async function middleware(request: NextRequest) {
+
+
+
+  
   const { pathname } = request.nextUrl
+
+  // 🚨 INTERNAL APIs that must bypass middleware completely
+const INTERNAL_BYPASS = [
+  "/api/auth/status",
+  "/api/mining/click/status",
+  "/api/mining/status",
+  "/api/rate-limit",
+]
+
+if (INTERNAL_BYPASS.some((p) => pathname.startsWith(p))) {
+  return NextResponse.next()
+}
+
   const context = getRateLimitContext(request)
 
   trackRequestRate("reverse-proxy", { path: pathname })

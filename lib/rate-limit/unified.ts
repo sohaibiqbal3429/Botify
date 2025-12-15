@@ -21,6 +21,11 @@ const DEFAULT_WHITELIST = [
   "192.168.0.0/16",
 ]
 
+
+
+
+
+
 const WHITELIST: string[] = (() => {
   const fromEnv = process.env.RATE_LIMIT_IP_WHITELIST
   if (!fromEnv) {
@@ -307,22 +312,27 @@ export function isWhitelistedIp(ip: string | null | undefined): boolean {
   return WHITELIST.some((rule) => ipMatchesWhitelist(ip, rule))
 }
 
-export function shouldBypassRateLimit(pathname: string, context: RateLimitContext): boolean {
+export function shouldBypassRateLimit(
+  pathname: string,
+  context: RateLimitContext,
+): boolean {
   const normalised = normalisePathname(pathname)
-  if (STATIC_ROUTE_EXACT.has(normalised)) {
+
+  // 🚨 CRITICAL: NEVER rate-limit mining APIs
+  if (
+    normalised.startsWith("/api/mining") ||
+    normalised.startsWith("/api/auth/status")
+  ) {
     return true
   }
 
-  if (STATIC_ROUTE_PREFIXES.some((prefix) => normalised.startsWith(prefix))) {
-    return true
-  }
-
-  if (isWhitelistedIp(context.ip)) {
-    return true
-  }
+  if (STATIC_ROUTE_EXACT.has(normalised)) return true
+  if (STATIC_ROUTE_PREFIXES.some((prefix) => normalised.startsWith(prefix))) return true
+  if (isWhitelistedIp(context.ip)) return true
 
   return false
 }
+
 
 function buildThrottleResponse(
   layer: RateLimitLayer,
