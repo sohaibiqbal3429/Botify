@@ -14,38 +14,45 @@ type MiningWidgetProps = {
   onMiningSuccess?: () => void | Promise<void>
 }
 
-function makeIdemKey() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID()
-  return `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`
+type MiningApiResponse = {
+  status?: { status?: string; error?: { message?: string } }
+  statusUrl?: string
+  error?: string
 }
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
   const [loading, startTransition] = useTransition()
   const [polling, setPolling] = useState(false)
-  const abortRef = useRef<AbortController | null>(null)
+
+  // ✅ prevent multiple parallel polls
+  const pollingRef = useRef(false)
 
   async function pollStatus(statusUrl: string) {
-    const start = Date.now()
-    const controller = new AbortController()
-    abortRef.current = controller
+    if (pollingRef.current) return
+    pollingRef.current = true
+    setPolling(true)
 
     try {
-      while (Date.now() - start < 25_000) {
+      const started = Date.now()
+      let interval = 700
+
+      while (Date.now() - started < 30_000) {
         const res = await fetch(statusUrl, {
           cache: "no-store",
           credentials: "include",
-          signal: controller.signal,
         })
 
-        const data = await res.json().catch(() => null)
+        const data: any = await res.json().catch(() => ({}))
 
         if (!res.ok) {
           throw new Error(data?.error || "Unable to fetch mining status")
         }
 
-        const s = data?.status?.status
+        const state = data?.status?.status
 
-        if (s === "completed") {
+        if (state === "completed") {
           toast({
             title: "✅ Mining rewarded",
             description: "Your mining reward has been added successfully.",
@@ -54,35 +61,33 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
           return
         }
 
-        if (s === "failed") {
+        if (state === "failed") {
           toast({
             variant: "destructive",
             title: "Mining failed",
-            description: data?.status?.error?.message || "Please try again.",
+            description: data?.status?.error?.message || "Please try again",
           })
           return
         }
 
-        // ✅ slower polling = less chance of rate-limit
-        await new Promise((r) => setTimeout(r, 3000))
+        await sleep(interval)
+        interval = Math.min(2000, Math.floor(interval * 1.25))
       }
 
       throw new Error("Mining is taking too long. Please refresh.")
-    } catch (error: any) {
+    } catch (err: any) {
       toast({
         variant: "destructive",
         title: "Mining error",
-        description: error?.message || "Unable to get mining progress.",
+        description: err?.message || "Something went wrong",
       })
     } finally {
-      abortRef.current = null
+      pollingRef.current = false
       setPolling(false)
     }
   }
 
   function handleMining() {
-    if (polling || loading) return
-
     if (mining.requiresDeposit) {
       toast({
         variant: "destructive",
@@ -93,7 +98,10 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
     }
 
     if (mining.canMine === false) {
-      const nextTime = mining.nextEligibleAt ? new Date(mining.nextEligibleAt).toLocaleString() : null
+      const nextTime = mining.nextEligibleAt
+        ? new Date(mining.nextEligibleAt).toLocaleString()
+        : null
+
       toast({
         variant: "destructive",
         title: "Mining cooldown active",
@@ -107,10 +115,13 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
     }
 
     startTransition(async () => {
-      setPolling(true)
-
       try {
-        const idempotencyKey = makeIdemKey()
+        setPolling(true)
+
+        // ✅ Always send idempotency key so server can dedupe
+        const idempotencyKey =
+          (globalThis.crypto as any)?.randomUUID?.() ||
+          `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`
 
         const res = await fetch("/api/mining/click", {
           method: "POST",
@@ -121,9 +132,9 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
           credentials: "include",
         })
 
-        const data = await res.json().catch(() => null)
+        const data: MiningApiResponse = await res.json().catch(() => ({}))
 
-        // ✅ direct completed
+        // ✅ Direct completed
         if (res.status === 200 && data?.status?.status === "completed") {
           toast({
             title: "✅ Mining rewarded",
@@ -134,20 +145,22 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
           return
         }
 
-        // ✅ queued: poll
+        // ✅ Queued -> poll statusUrl
         if (res.status === 202 && data?.statusUrl) {
           await pollStatus(data.statusUrl)
           return
         }
 
+        // ✅ real error message
         throw new Error(data?.error || "Unable to start mining")
       } catch (err: any) {
-        setPolling(false)
         toast({
           variant: "destructive",
           title: "Mining error",
           description: err?.message || "Something went wrong",
         })
+      } finally {
+        setPolling(false)
       }
     })
   }
@@ -159,12 +172,6 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
       <Button onClick={handleMining} disabled={loading || polling} className="w-full">
         {loading || polling ? "Mining..." : "Start Mining"}
       </Button>
-
-      {polling ? (
-        <p className="text-xs text-muted-foreground">
-          Processing your mining request… please wait.
-        </p>
-      ) : null}
     </div>
   )
 }
