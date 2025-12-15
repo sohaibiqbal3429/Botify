@@ -5,6 +5,14 @@ import { Activity, AlertTriangle, Clock3 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
+const OBSERVABILITY_DISABLED_IN_BROWSER =
+  (process.env.NEXT_PUBLIC_DISABLE_OBSERVABILITY_IN_BROWSER ??
+    process.env.DISABLE_OBSERVABILITY_IN_BROWSER ??
+    (process.env.NODE_ENV !== "production" ? "true" : "false"))
+    .toString()
+    .toLowerCase()
+    .trim() === "true"
+
 interface TelemetryLayer {
   layer: string
   requestRatePerSecond: number
@@ -61,6 +69,26 @@ const Tile = memo(function Tile({ layer, windowMs }: { layer: TelemetryLayer; wi
 })
 
 export function RateLimitTelemetryCard() {
+  if (OBSERVABILITY_DISABLED_IN_BROWSER) {
+    return (
+      <Card className="dashboard-card w-full col-span-full crypto-card">
+        <CardHeader className="flex flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg text-foreground dark:text-primary-dark">
+              <Activity className="h-5 w-5 text-primary" /> Rate Limit Telemetry
+            </CardTitle>
+            <p className="text-sm text-muted-foreground dark:text-secondary-dark">
+              Browser observability is disabled (DISABLE_OBSERVABILITY_IN_BROWSER).
+            </p>
+          </div>
+          <Badge variant="outline" className="uppercase tracking-wide text-xs">
+            Disabled
+          </Badge>
+        </CardHeader>
+      </Card>
+    )
+  }
+
   const [layers, setLayers] = useState<TelemetryLayer[]>([])
   const [windowMs, setWindowMs] = useState<number>(60_000)
   const [status, setStatus] = useState<"live" | "degraded">("live")
