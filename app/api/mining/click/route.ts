@@ -1,3 +1,7 @@
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 import { type NextRequest, NextResponse } from "next/server"
 
 import { getUserFromRequest } from "@/lib/auth"
@@ -25,6 +29,15 @@ function makeIdempotencyKey() {
   return `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`
 }
 
+const withTimeout = async <T,>(p: Promise<T>, ms = 12000): Promise<T> => {
+  return await Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("Mining request timeout")), ms),
+    ),
+  ])
+}
+
 function buildStatusResponse(
   status: MiningRequestStatus,
   request: NextRequest,
@@ -36,7 +49,7 @@ function buildStatusResponse(
   let statusCode = 202
   const headers: Record<string, string> = {
     "Cache-Control": "no-store",
-    "Idempotency-Key": status.idempotencyKey, // always return it for client
+    "Idempotency-Key": status.idempotencyKey,
     ...extraHeaders,
   }
 
@@ -92,7 +105,7 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  // 3) Idempotency key (accept both casings + auto-generate)
+  // 3) Idempotency key
   let idempotencyKey =
     request.headers.get("idempotency-key")?.trim() ||
     request.headers.get("Idempotency-Key")?.trim() ||
@@ -106,7 +119,12 @@ export async function POST(request: NextRequest) {
   const processDirect = async (successOutcome: string) => {
     try {
       const requestedAt = new Date()
-      const result = await performMiningClick(userPayload.userId, { idempotencyKey })
+
+      const result = await withTimeout(
+        performMiningClick(userPayload.userId, { idempotencyKey }),
+        12000,
+      )
+
       const completedAt = new Date()
 
       await recordMiningMetrics({
@@ -126,18 +144,18 @@ export async function POST(request: NextRequest) {
         queueDepth: 0,
         result: {
           ...result,
-          message: result.message || "Mining rewarded",
+          message: (result as any).message || "Mining rewarded",
           completedAt: completedAt.toISOString(),
         },
       }
 
       return respond(buildStatusResponse(status, request), { outcome: successOutcome })
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof MiningActionError) {
         return respond(
           NextResponse.json(
             {
-              error: error.message, // return real reason
+              error: error.message,
               code: (error as any)?.code,
               retryable: (error as any)?.retryable,
             },
@@ -147,10 +165,20 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      if (String(error?.message || "").includes("timeout")) {
+        return respond(
+          NextResponse.json(
+            { error: "Mining timeout. Please try again." },
+            { status: 504, headers: { "Idempotency-Key": idempotencyKey } },
+          ),
+          { outcome: "timeout" },
+        )
+      }
+
       console.error("Mining click processing error", error)
       return respond(
         NextResponse.json(
-          { error: (error as any)?.message || "Unable to start mining. Please try again." },
+          { error: error?.message || "Unable to start mining. Please try again." },
           { status: 500, headers: { "Idempotency-Key": idempotencyKey } },
         ),
         { outcome: "processing_failure" },
@@ -176,7 +204,7 @@ export async function POST(request: NextRequest) {
     return respond(buildStatusResponse(existingStatus, request), { outcome: "duplicate" })
   }
 
-  // 6) Enqueue -> return statusUrl (client MUST poll it)
+  // 6) Enqueue -> return statusUrl (client polls it)
   try {
     const enqueueResult = await enqueueMiningRequest({
       userId: userPayload.userId,
