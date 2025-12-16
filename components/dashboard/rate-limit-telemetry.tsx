@@ -6,12 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
 const OBSERVABILITY_DISABLED_IN_BROWSER =
-  (process.env.NEXT_PUBLIC_DISABLE_OBSERVABILITY_IN_BROWSER ??
-    process.env.DISABLE_OBSERVABILITY_IN_BROWSER ??
-    (process.env.NODE_ENV !== "production" ? "true" : "false"))
+  // ✅ Default OFF everywhere unless explicitly enabled via env flag
+  (process.env.NEXT_PUBLIC_ENABLE_OBSERVABILITY_IN_BROWSER ??
+    process.env.ENABLE_OBSERVABILITY_IN_BROWSER ??
+    "false")
     .toString()
     .toLowerCase()
-    .trim() === "true"
+    .trim() !== "true"
 
 interface TelemetryLayer {
   layer: string
@@ -25,8 +26,9 @@ interface TelemetryResponse {
   layers: TelemetryLayer[]
 }
 
-const MIN_REFRESH_MS = 1000;      // faster when healthy
-const MAX_REFRESH_MS = 30000;     // gentle on errors
+const MIN_REFRESH_MS = 30_000; // enforce minimum 30s between requests
+const MAX_REFRESH_MS = 120_000; // cap exponential backoff at 2 minutes
+const MAX_REQUESTS_PER_MINUTE = 2; // never exceed 2/min even if tab thrashes
 
 function formatLatency(v: number | null) {
   if (v === null || !Number.isFinite(v)) return "—"
@@ -96,6 +98,7 @@ export function RateLimitTelemetryCard() {
   const backoffRef = useRef<number>(MIN_REFRESH_MS)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inFlight = useRef<AbortController | null>(null)
+  const requestCounterRef = useRef<{ count: number; windowStart: number }>({ count: 0, windowStart: Date.now() })
 
   const schedule = (ms: number) => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -105,7 +108,17 @@ export function RateLimitTelemetryCard() {
   const tick = async () => {
     // pause when tab hidden (saves CPU/network)
     if (document.visibilityState === "hidden") {
-      schedule(5000)
+      schedule(Math.max(15_000, backoffRef.current))
+      return
+    }
+
+    const now = Date.now()
+    const elapsed = now - requestCounterRef.current.windowStart
+    if (elapsed > 60_000) {
+      requestCounterRef.current = { count: 0, windowStart: now }
+    }
+    if (requestCounterRef.current.count >= MAX_REQUESTS_PER_MINUTE) {
+      schedule(Math.max(30_000, backoffRef.current))
       return
     }
 
@@ -126,19 +139,22 @@ export function RateLimitTelemetryCard() {
       setUpdatedLabel(new Date(data.lastUpdated).toLocaleTimeString())
       setStatus("live")
 
-      // success → reset backoff and refresh quickly
+      requestCounterRef.current.count += 1
+
+      // success → reset backoff and respect minimum cadence
       backoffRef.current = MIN_REFRESH_MS
       schedule(backoffRef.current)
     } catch (e) {
       console.error("telemetry fetch failed", e)
       setStatus("degraded")
-      // exponential backoff (caps at 30s)
+      // exponential backoff (caps at MAX_REFRESH_MS)
       backoffRef.current = Math.min(backoffRef.current * 2, MAX_REFRESH_MS)
       schedule(backoffRef.current)
     }
   }
 
   useEffect(() => {
+    void tick()
     schedule(MIN_REFRESH_MS)
     const onVis = () => schedule(100) // immediately refresh when tab comes back
     document.addEventListener("visibilitychange", onVis)
