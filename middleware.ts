@@ -15,14 +15,9 @@ export async function middleware(request: NextRequest) {
   trackRequestRate("reverse-proxy", { path: pathname })
 
   // ✅ IMPORTANT: bypass rate-limit + auth guards for mining endpoints that poll frequently
-  const MINING_BYPASS = [
-    "/api/mining/click",
-    "/api/mining/click/status",
-    "/api/mining/status",
-    "/api/mining/start-session",
-  ]
+  const MINING_POLL_BYPASS = ["/api/mining/click/status", "/api/mining/status", "/api/mining/start-session"]
 
-  if (MINING_BYPASS.some((p) => pathname.startsWith(p))) {
+  if (MINING_POLL_BYPASS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next()
   }
 
