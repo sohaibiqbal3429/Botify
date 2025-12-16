@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useTransition } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/use-toast"
 
@@ -15,25 +15,45 @@ type MiningWidgetProps = {
 }
 
 type MiningApiResponse = {
-  status?: { status?: string; error?: { message?: string } }
+  status?: { status?: string; error?: { message?: string; details?: Record<string, any> } }
   statusUrl?: string
   error?: string
+  retryAfterSeconds?: number
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 const POLL_INTERVAL_MS = 1000
-const MAX_POLL_ATTEMPTS = 12
+const MAX_POLL_ATTEMPTS = 20
 const MAX_POLL_INTERVAL_MS = 10_000
+const POLL_TOTAL_TIMEOUT_MS = 30_000
+const CLICK_TIMEOUT_MS = 12_000
+const STATUS_TIMEOUT_MS = 6_000
 const PENDING_STORAGE_KEY = "botify:mining:pending-status"
 const MAX_PENDING_AGE_MS = 1000 * 60 * 60 * 12 // half a day to avoid stale replays
 
+function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number, external?: AbortController) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  if (init.signal) {
+    init.signal.addEventListener("abort", () => controller.abort(), { once: true })
+  }
+
+  if (external) {
+    external.signal.addEventListener("abort", () => controller.abort(), { once: true })
+  }
+
+  const merged = { ...init, signal: controller.signal }
+
+  return fetch(input, merged).finally(() => clearTimeout(timer))
+}
+
 export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
-  const [loading, startTransition] = useTransition()
+  const [requesting, setRequesting] = useState(false)
   const [polling, setPolling] = useState(false)
   const [pendingStatusUrl, setPendingStatusUrl] = useState<string | null>(null)
 
-  // ✅ prevent multiple parallel polls
   const pollingRef = useRef(false)
   const pollAbortRef = useRef<AbortController | null>(null)
 
@@ -56,7 +76,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
       }
 
       setPendingStatusUrl(parsed.statusUrl)
-      pollStatus(parsed.statusUrl)
+      void pollStatus(parsed.statusUrl)
     } catch (err) {
       console.warn("Failed to restore pending mining status", err)
       window.localStorage.removeItem(PENDING_STORAGE_KEY)
@@ -102,8 +122,9 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
       let attempt = 0
       let queueDepthNotified = false
       let nextDelay = POLL_INTERVAL_MS
+      const startedAt = Date.now()
 
-      while (attempt < MAX_POLL_ATTEMPTS) {
+      while (attempt < MAX_POLL_ATTEMPTS && Date.now() - startedAt < POLL_TOTAL_TIMEOUT_MS) {
         attempt += 1
 
         if (document.visibilityState === "hidden") {
@@ -115,11 +136,16 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
         const controller = new AbortController()
         pollAbortRef.current = controller
 
-        const res = await fetch(statusUrl, {
-          cache: "no-store",
-          credentials: "include",
-          signal: controller.signal,
-        })
+        const res = await fetchWithTimeout(
+          statusUrl,
+          {
+            cache: "no-store",
+            credentials: "include",
+            signal: controller.signal,
+          },
+          STATUS_TIMEOUT_MS,
+          controller,
+        )
 
         const data: any = await res.json().catch(() => ({}))
         const retryAfterHeader = res.headers.get("Retry-After")
@@ -146,14 +172,28 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
           : POLL_INTERVAL_MS
 
         if (!res.ok) {
-          throw new Error(data?.error || data?.status?.error?.message || "Unable to fetch mining status")
+          const detail = data?.status?.error?.details
+          const message =
+            data?.error || data?.status?.error?.message || detail?.message || "Unable to fetch mining status"
+          if (detail?.nextEligibleAt || detail?.timeLeft) {
+            toast({
+              variant: "destructive",
+              title: "Mining cooldown active",
+              description:
+                detail?.nextEligibleAt ||
+                (detail?.timeLeft ? `Try again in ${Math.max(1, Math.ceil(detail.timeLeft / 60))} minutes.` : message),
+            })
+            clearPendingStatus()
+            return
+          }
+          throw new Error(message)
         }
 
         const state = data?.status?.status
 
         if (state === "completed") {
           toast({
-            title: "✅ Mining rewarded",
+            title: "Mining rewarded",
             description: "Your mining reward has been added successfully.",
           })
           clearPendingStatus()
@@ -193,10 +233,11 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
       })
       storePendingStatus(statusUrl)
     } catch (err: any) {
+      const isAbort = err?.name === "AbortError"
       toast({
         variant: "destructive",
         title: "Mining error",
-        description: err?.message || "Something went wrong",
+        description: isAbort ? "Mining status timed out. Please retry." : err?.message || "Something went wrong",
       })
       storePendingStatus(statusUrl)
     } finally {
@@ -206,7 +247,9 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
     }
   }
 
-  function handleMining() {
+  async function handleMining() {
+    if (requesting || pollingRef.current) return
+
     if (mining.requiresDeposit) {
       toast({
         variant: "destructive",
@@ -233,66 +276,87 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
       return
     }
 
-    startTransition(async () => {
-      try {
-        // ✅ Always send idempotency key so server can dedupe
-        const idempotencyKey =
-          (globalThis.crypto as any)?.randomUUID?.() ||
-          `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`
+    setRequesting(true)
 
-        const res = await fetch("/api/mining/click", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": idempotencyKey,
-          },
-          credentials: "include",
+    try {
+      const idempotencyKey =
+        (globalThis.crypto as any)?.randomUUID?.() ||
+        `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`
+
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), CLICK_TIMEOUT_MS)
+
+      const res = await fetch("/api/mining/click", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
+        credentials: "include",
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timer))
+
+      const data: MiningApiResponse = await res.json().catch(() => ({}))
+
+      const statusUrl = data?.statusUrl
+
+      if (res.status === 200 && data?.status?.status === "completed") {
+        toast({
+          title: "Mining rewarded",
+          description: "Your mining reward has been added.",
         })
+        clearPendingStatus()
+        await onMiningSuccess?.()
+        setPolling(false)
+        return
+      }
 
-        const data: MiningApiResponse = await res.json().catch(() => ({}))
+      if (res.status === 202 && statusUrl) {
+        storePendingStatus(statusUrl)
+        await pollStatus(statusUrl)
+        return
+      }
 
-        const statusUrl = data?.statusUrl
-
-        // ✅ Direct completed
-        if (res.status === 200 && data?.status?.status === "completed") {
-          toast({
-            title: "✅ Mining rewarded",
-            description: "Your mining reward has been added.",
-          })
-          clearPendingStatus()
-          await onMiningSuccess?.()
-          setPolling(false)
-          return
-        }
-
-        // ✅ Queued -> poll statusUrl
-        if (res.status === 202 && statusUrl) {
-          storePendingStatus(statusUrl)
-          await pollStatus(statusUrl)
-          return
-        }
-
-        // ✅ real error message
-        throw new Error(data?.error || "Unable to start mining")
-      } catch (err: any) {
+      const errMessage = data?.error || data?.status?.error?.message || "Unable to start mining"
+      const detail = data?.status?.error?.details
+      if (detail?.nextEligibleAt || detail?.timeLeft) {
         toast({
           variant: "destructive",
-          title: "Mining error",
-          description: err?.message || "Something went wrong",
+          title: "Mining cooldown active",
+          description:
+            detail?.nextEligibleAt ||
+            (detail?.timeLeft ? `Try again in ${Math.max(1, Math.ceil(detail.timeLeft / 60))} minutes.` : errMessage),
         })
-      } finally {
-        setPolling(false)
+        clearPendingStatus()
+        return
       }
-    })
+
+      throw new Error(errMessage)
+    } catch (err: any) {
+      const isAbort = err?.name === "AbortError"
+      toast({
+        variant: "destructive",
+        title: "Mining error",
+        description: isAbort ? "Request timed out. Please try again." : err?.message || "Something went wrong",
+      })
+    } finally {
+      setRequesting(false)
+    }
   }
 
   return (
     <div className="rounded-xl border p-6 space-y-4">
       <div className="text-lg font-semibold">Mining</div>
 
-      <Button onClick={handleMining} disabled={loading || polling} className="w-full">
-        {loading || polling ? "Mining..." : "Start Mining"}
+      <Button onClick={handleMining} disabled={requesting || polling} className="w-full">
+        {requesting || polling ? "Mining..." : "Start Mining"}
       </Button>
+
+      {pendingStatusUrl && !polling && (
+        <div className="text-sm text-muted-foreground">
+          Resuming your mining request. We&apos;ll notify you when it finishes.
+        </div>
+      )}
     </div>
   )
 }

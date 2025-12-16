@@ -10,6 +10,9 @@ export type MiningRequestState =
   | "completed"
   | "failed"
 
+const WORKER_HEARTBEAT_KEY = "mining:worker:heartbeat"
+const WORKER_HEARTBEAT_TTL_MS = 90_000
+
 export interface MiningRequestStatus {
   status: MiningRequestState
   idempotencyKey: string
@@ -61,6 +64,27 @@ async function writeStatus(status: MiningRequestStatus, ttlMs?: number): Promise
   const key = getStatusKey(status.idempotencyKey)
   const expiration = Math.max(1000, ttlMs ?? MINING_STATUS_TTL_MS)
   await redis.set(key, JSON.stringify(status), "PX", expiration)
+}
+
+export async function heartbeatMiningWorker(): Promise<void> {
+  if (!isRedisEnabled()) return
+
+  const redis = getRedisClient()
+  const now = Date.now()
+  await redis.psetex(WORKER_HEARTBEAT_KEY, WORKER_HEARTBEAT_TTL_MS, String(now))
+}
+
+export async function isMiningWorkerAlive(maxAgeMs = WORKER_HEARTBEAT_TTL_MS): Promise<boolean> {
+  if (!isRedisEnabled()) return false
+
+  const redis = getRedisClient()
+  const lastSeen = await redis.get(WORKER_HEARTBEAT_KEY)
+  if (!lastSeen) return false
+
+  const ts = Number(lastSeen)
+  if (!Number.isFinite(ts)) return false
+
+  return Date.now() - ts <= maxAgeMs
 }
 
 export interface EnqueueMiningRequestInput {

@@ -14,14 +14,17 @@ export async function middleware(request: NextRequest) {
 
   trackRequestRate("reverse-proxy", { path: pathname })
 
-  // ✅ IMPORTANT: bypass rate-limit + auth guards for mining endpoints that poll frequently
+  // バ. IMPORTANT: bypass rate-limit + auth guards for mining endpoints that poll frequently
   const MINING_POLL_BYPASS = ["/api/mining/click/status", "/api/mining/status", "/api/mining/start-session"]
+  const isMiningStatusRoute = MINING_POLL_BYPASS.some((p) => pathname.startsWith(p))
+  const isMiningClickRoute = pathname.startsWith("/api/mining/click")
+  const isMiningRoute = isMiningStatusRoute || isMiningClickRoute
 
-  if (MINING_POLL_BYPASS.some((p) => pathname.startsWith(p))) {
+  if (isMiningStatusRoute) {
     return NextResponse.next()
   }
 
-  // ✅ Rate limit (for everything else)
+  // バ. Rate limit (for everything else)
   if (!shouldBypassRateLimit(pathname, context)) {
     const decision = await enforceUnifiedRateLimit("reverse-proxy", context, { path: pathname })
     if (!decision.allowed && decision.response) {
@@ -57,8 +60,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/auth/login", request.url))
   }
 
-  // Block guard (kept same)
-  if (user) {
+  // Block guard (skip for mining endpoints to avoid recursion/deadlock)
+  if (user && !isMiningRoute) {
     try {
       const token = getTokenFromRequest(request)
       if (token) {
