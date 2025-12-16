@@ -27,6 +27,82 @@ const NO_STORE = "no-store"
 const HARD_RESPONSE_TIMEOUT_MS = 3200
 const INLINE_MINING_TIMEOUT_MS = 2000
 
+async function runInlineMining(
+  userId: string,
+  idempotencyKey: string,
+  request: NextRequest,
+  respond: (response: NextResponse, tags?: Record<string, string | number>) => NextResponse,
+  tags: Record<string, string | number>,
+): Promise<NextResponse> {
+  console.warn("[mining] click:inline_fallback_start", { idempotencyKey })
+  try {
+    try {
+      await markMiningStatusProcessing(idempotencyKey)
+    } catch (err) {
+      // Redis may be down; continue inline without status persistence.
+      console.warn("[mining] click:inline_mark_processing_failed", err)
+    }
+
+    const result = await withTimeout(
+      performMiningClick(userId, { idempotencyKey }),
+      INLINE_MINING_TIMEOUT_MS,
+      "inline_performMiningClick",
+    )
+
+    try {
+      await markMiningStatusCompleted(idempotencyKey, userId, {
+        ...result,
+        message: "Mining rewarded",
+        completedAt: new Date().toISOString(),
+      })
+    } catch (err) {
+      console.warn("[mining] click:inline_mark_completed_failed", err)
+    }
+
+    const completedStatus: MiningRequestStatus = {
+      status: "completed",
+      idempotencyKey,
+      userId,
+      requestedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      result,
+    }
+
+    console.info("[mining] click:inline_fallback_success", { idempotencyKey })
+    return respond(buildStatusResponse(completedStatus, request, { "X-Worker-Fallback": "inline" }), {
+      ...tags,
+      outcome: "inline_completed",
+    })
+  } catch (error: any) {
+    console.error("[mining] click:inline_fallback_error", error)
+    const isActionError = error instanceof MiningActionError
+    try {
+      await markMiningStatusFailed(idempotencyKey, userId, {
+        message: isActionError ? error.message : "Unexpected mining error",
+        retryable: !isActionError || (isActionError && error.status >= 500),
+        details: (error as any)?.details,
+      })
+    } catch (err) {
+      console.warn("[mining] click:inline_mark_failed_failed", err)
+    }
+
+    const statusCode = isActionError && error.status ? error.status : 503
+    return respond(
+      NextResponse.json(
+        {
+          error: isActionError ? error.message : "Mining failed. Please try again.",
+          ...(error as any)?.details,
+        },
+        {
+          status: statusCode,
+          headers: { "Idempotency-Key": idempotencyKey, "Cache-Control": NO_STORE },
+        },
+      ),
+      { ...tags, outcome: "inline_failure" },
+    )
+  }
+}
+
 function makeIdempotencyKey() {
   const g = globalThis as any
   if (g?.crypto?.randomUUID) return g.crypto.randomUUID()
@@ -128,13 +204,7 @@ export async function POST(request: NextRequest) {
     // Queue availability
     const queueAvailable = isRedisEnabled() && isMiningQueueEnabled()
     if (!queueAvailable) {
-      return respond(
-        NextResponse.json(
-          { error: "Mining queue unavailable. Please try again soon." },
-          { status: 503, headers: { "Idempotency-Key": idempotencyKey, "Cache-Control": NO_STORE } },
-        ),
-        { outcome: "queue_unavailable" },
-      )
+      return runInlineMining(userPayload.userId, idempotencyKey, request, respond, { outcome: "queue_unavailable_inline" })
     }
 
     // Worker heartbeat (soft check; do not hard-fail)
@@ -155,20 +225,7 @@ export async function POST(request: NextRequest) {
       console.info("[mining] click:redis_status_end", { found: Boolean(existingStatus) })
     } catch (e) {
       console.warn("Redis status lookup timed out", e)
-      return respond(
-        NextResponse.json(
-          { error: "Mining is temporarily unavailable. Please try again.", retryAfterSeconds: 2 },
-          {
-            status: 503,
-            headers: {
-              "Idempotency-Key": idempotencyKey,
-              "Retry-After": "2",
-              "Cache-Control": NO_STORE,
-            },
-          },
-        ),
-        { outcome: "status_timeout" },
-      )
+      return runInlineMining(userPayload.userId, idempotencyKey, request, respond, { outcome: "status_timeout_inline" })
     }
 
     if (existingStatus) {
@@ -262,20 +319,7 @@ export async function POST(request: NextRequest) {
       })
     } catch (error) {
       console.error("Mining click enqueue error/timeout", error)
-      return respond(
-        NextResponse.json(
-          { error: "Unable to queue mining request. Please try again.", retryAfterSeconds: 3 },
-          {
-            status: 503,
-            headers: {
-              "Idempotency-Key": idempotencyKey,
-              "Retry-After": "3",
-              "Cache-Control": NO_STORE,
-            },
-          },
-        ),
-        { outcome: "enqueue_failure" },
-      )
+      return runInlineMining(userPayload.userId, idempotencyKey, request, respond, { outcome: "enqueue_failure_inline" })
     }
   }
 
