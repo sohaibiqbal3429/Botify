@@ -23,15 +23,45 @@ type MiningApiResponse = {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 const POLL_INTERVAL_MS = 1000
-const POLL_TIMEOUT_MS = 20_000
+const MAX_POLL_ATTEMPTS = 12
+const MAX_POLL_INTERVAL_MS = 10_000
+const PENDING_STORAGE_KEY = "botify:mining:pending-status"
+const MAX_PENDING_AGE_MS = 1000 * 60 * 60 * 12 // half a day to avoid stale replays
 
 export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
   const [loading, startTransition] = useTransition()
   const [polling, setPolling] = useState(false)
+  const [pendingStatusUrl, setPendingStatusUrl] = useState<string | null>(null)
 
   // ✅ prevent multiple parallel polls
   const pollingRef = useRef(false)
   const pollAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    try {
+      const raw = window.localStorage.getItem(PENDING_STORAGE_KEY)
+      if (!raw) return
+
+      const parsed = JSON.parse(raw) as { statusUrl: string; savedAt: number }
+      if (!parsed?.statusUrl || !parsed?.savedAt) {
+        window.localStorage.removeItem(PENDING_STORAGE_KEY)
+        return
+      }
+
+      if (Date.now() - parsed.savedAt > MAX_PENDING_AGE_MS) {
+        window.localStorage.removeItem(PENDING_STORAGE_KEY)
+        return
+      }
+
+      setPendingStatusUrl(parsed.statusUrl)
+      pollStatus(parsed.statusUrl)
+    } catch (err) {
+      console.warn("Failed to restore pending mining status", err)
+      window.localStorage.removeItem(PENDING_STORAGE_KEY)
+    }
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -40,15 +70,42 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
     }
   }, [])
 
+  function storePendingStatus(statusUrl: string) {
+    try {
+      if (typeof window === "undefined") return
+      window.localStorage.setItem(
+        PENDING_STORAGE_KEY,
+        JSON.stringify({ statusUrl, savedAt: Date.now() }),
+      )
+      setPendingStatusUrl(statusUrl)
+    } catch (err) {
+      console.warn("Unable to persist pending mining status", err)
+    }
+  }
+
+  function clearPendingStatus() {
+    try {
+      if (typeof window === "undefined") return
+      window.localStorage.removeItem(PENDING_STORAGE_KEY)
+      setPendingStatusUrl(null)
+    } catch (err) {
+      console.warn("Unable to clear pending mining status", err)
+    }
+  }
+
   async function pollStatus(statusUrl: string) {
     if (pollingRef.current) return
     pollingRef.current = true
     setPolling(true)
 
     try {
-      const started = Date.now()
+      let attempt = 0
+      let queueDepthNotified = false
+      let nextDelay = POLL_INTERVAL_MS
 
-      while (Date.now() - started < POLL_TIMEOUT_MS) {
+      while (attempt < MAX_POLL_ATTEMPTS) {
+        attempt += 1
+
         if (document.visibilityState === "hidden") {
           await sleep(POLL_INTERVAL_MS)
           continue
@@ -67,8 +124,25 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
         const data: any = await res.json().catch(() => ({}))
         const retryAfterHeader = res.headers.get("Retry-After")
         const retryAfterSeconds = retryAfterHeader ? Number.parseFloat(retryAfterHeader) : null
+        const backoffHintHeader = res.headers.get("X-Backoff-Hint")
+        const backoffHintSeconds = backoffHintHeader ? Number.parseFloat(backoffHintHeader) : null
+        const queueDepthHeader = res.headers.get("X-Queue-Depth")
+        const queueDepth = queueDepthHeader ? Number.parseInt(queueDepthHeader) : null
+
+        if (queueDepth && queueDepth > 2000 && !queueDepthNotified) {
+          toast({
+            title: "Mining queue is busy",
+            description: "We queued your reward safely. It may take a moment to finalize.",
+          })
+          queueDepthNotified = true
+        }
+
         const retryDelay = Number.isFinite(retryAfterSeconds)
           ? Math.max(POLL_INTERVAL_MS, retryAfterSeconds * 1000)
+          : POLL_INTERVAL_MS
+
+        const backoffHintDelay = Number.isFinite(backoffHintSeconds)
+          ? Math.max(POLL_INTERVAL_MS, backoffHintSeconds * 1000)
           : POLL_INTERVAL_MS
 
         if (!res.ok) {
@@ -82,6 +156,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
             title: "✅ Mining rewarded",
             description: "Your mining reward has been added successfully.",
           })
+          clearPendingStatus()
           await onMiningSuccess?.()
           return
         }
@@ -92,6 +167,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
             title: "Mining failed",
             description: data?.status?.error?.message || "Please try again",
           })
+          clearPendingStatus()
           return
         }
 
@@ -99,16 +175,30 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
           throw new Error("Unexpected mining status. Please try again.")
         }
 
-        await sleep(Math.min(retryDelay, POLL_TIMEOUT_MS))
+        nextDelay = Math.min(
+          Math.max(retryDelay, backoffHintDelay, nextDelay * 1.4),
+          MAX_POLL_INTERVAL_MS,
+        )
+
+        if (queueDepth && queueDepth > 0) {
+          nextDelay = Math.min(MAX_POLL_INTERVAL_MS, Math.max(nextDelay, Math.min(queueDepth * 2, 8000)))
+        }
+
+        await sleep(nextDelay)
       }
 
-      throw new Error("Mining is taking too long. Please refresh.")
+      toast({
+        title: "Mining is finalizing",
+        description: "We will keep your request queued. Check back in a few moments.",
+      })
+      storePendingStatus(statusUrl)
     } catch (err: any) {
       toast({
         variant: "destructive",
         title: "Mining error",
         description: err?.message || "Something went wrong",
       })
+      storePendingStatus(statusUrl)
     } finally {
       pollingRef.current = false
       pollAbortRef.current?.abort()
@@ -161,20 +251,24 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
 
         const data: MiningApiResponse = await res.json().catch(() => ({}))
 
+        const statusUrl = data?.statusUrl
+
         // ✅ Direct completed
         if (res.status === 200 && data?.status?.status === "completed") {
           toast({
             title: "✅ Mining rewarded",
             description: "Your mining reward has been added.",
           })
+          clearPendingStatus()
           await onMiningSuccess?.()
           setPolling(false)
           return
         }
 
         // ✅ Queued -> poll statusUrl
-        if (res.status === 202 && data?.statusUrl) {
-          await pollStatus(data.statusUrl)
+        if (res.status === 202 && statusUrl) {
+          storePendingStatus(statusUrl)
+          await pollStatus(statusUrl)
           return
         }
 
