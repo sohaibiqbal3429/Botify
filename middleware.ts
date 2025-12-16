@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getTokenFromRequest, getUserFromRequest } from "@/lib/auth-middleware"
-import {
-  enforceUnifiedRateLimit,
-  getRateLimitContext,
-  shouldBypassRateLimit,
-} from "@/lib/rate-limit/edge"
+import { enforceUnifiedRateLimit, getRateLimitContext, shouldBypassRateLimit } from "@/lib/rate-limit/edge"
 import { trackRequestRate } from "@/lib/observability/request-metrics"
 
 export async function middleware(request: NextRequest) {
@@ -14,17 +10,6 @@ export async function middleware(request: NextRequest) {
 
   trackRequestRate("reverse-proxy", { path: pathname })
 
-  // バ. IMPORTANT: bypass rate-limit + auth guards for mining endpoints that poll frequently
-  const MINING_POLL_BYPASS = ["/api/mining/click/status", "/api/mining/status", "/api/mining/start-session"]
-  const isMiningStatusRoute = MINING_POLL_BYPASS.some((p) => pathname.startsWith(p))
-  const isMiningClickRoute = pathname.startsWith("/api/mining/click")
-  const isMiningRoute = isMiningStatusRoute || isMiningClickRoute
-
-  if (isMiningStatusRoute) {
-    return NextResponse.next()
-  }
-
-  // バ. Rate limit (for everything else)
   if (!shouldBypassRateLimit(pathname, context)) {
     const decision = await enforceUnifiedRateLimit("reverse-proxy", context, { path: pathname })
     if (!decision.allowed && decision.response) {
@@ -60,8 +45,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/auth/login", request.url))
   }
 
-  // Block guard (skip for mining endpoints to avoid recursion/deadlock)
-  if (user && !isMiningRoute) {
+  if (user) {
     try {
       const token = getTokenFromRequest(request)
       if (token) {
@@ -73,8 +57,20 @@ export async function middleware(request: NextRequest) {
         if (statusResponse.ok) {
           const payload = await statusResponse.json()
           if (payload?.blocked) {
-            const guardedPages = ["/dashboard", "/deposit", "/withdraw", "/transactions", "/mining"]
-            const guardedApis = ["/api/wallet", "/api/deposit", "/api/withdraw", "/api/mining", "/api/dashboard"]
+            const guardedPages = [
+              "/dashboard",
+              "/deposit",
+              "/withdraw",
+              "/transactions",
+              "/mining",
+            ]
+            const guardedApis = [
+              "/api/wallet",
+              "/api/deposit",
+              "/api/withdraw",
+              "/api/mining",
+              "/api/dashboard",
+            ]
 
             const isBlockedPage = guardedPages.some((prefix) => pathname.startsWith(prefix))
             const isBlockedApi = guardedApis.some((prefix) => pathname.startsWith(prefix))

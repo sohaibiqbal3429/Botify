@@ -6,146 +6,54 @@ import {
   enqueueMiningRequest,
   getMiningRequestStatus,
   isMiningQueueEnabled,
-  isMiningWorkerAlive,
-  markMiningStatusCompleted,
-  markMiningStatusFailed,
-  markMiningStatusProcessing,
+  MINING_STATUS_TTL_MS,
   type MiningRequestStatus,
 } from "@/lib/services/mining-queue"
-import { enforceUnifiedRateLimit, getClientIp, getRateLimitContext } from "@/lib/rate-limit/unified"
+import { MiningActionError, performMiningClick } from "@/lib/services/mining"
+import { recordMiningMetrics } from "@/lib/services/mining-metrics"
+import {
+  enforceUnifiedRateLimit,
+  getClientIp,
+  getRateLimitContext,
+} from "@/lib/rate-limit/unified"
 import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
-import { performMiningClick, MiningActionError } from "@/lib/services/mining"
-
-// CRITICAL: mongoose/transactions must run on node runtime
-export const runtime = "nodejs"
-export const dynamic = "force-dynamic"
-
-const REDIS_TIMEOUT_MS = 1400
-const RATE_LIMIT_TIMEOUT_MS = 1400
-const WORKER_STALE_MS = 120_000
-const NO_STORE = "no-store"
-const HARD_RESPONSE_TIMEOUT_MS = 3200
-const INLINE_MINING_TIMEOUT_MS = 2000
-
-function makeIdempotencyKey() {
-  const g = globalThis as any
-  if (g?.crypto?.randomUUID) return g.crypto.randomUUID()
-  return `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const id = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms)
-    promise
-      .then((v) => resolve(v))
-      .catch((e) => reject(e))
-      .finally(() => clearTimeout(id))
-  })
-}
 
 function buildStatusResponse(
   status: MiningRequestStatus,
   request: NextRequest,
-  extraHeaders: Record<string, string> = {},
 ): NextResponse<{ status: MiningRequestStatus; statusUrl: string }> {
   const statusUrl = new URL("/api/mining/click/status", request.url)
   statusUrl.searchParams.set("key", status.idempotencyKey)
 
   let statusCode = 202
-  const headers: Record<string, string> = {
-    "Cache-Control": NO_STORE,
-    "Idempotency-Key": status.idempotencyKey,
-    ...extraHeaders,
-  }
+  const headers: Record<string, string> = { "Cache-Control": "no-store" }
 
   if (status.status === "queued" || status.status === "processing") {
-    if (status.queueDepth !== undefined) headers["X-Queue-Depth"] = String(status.queueDepth)
+    if (status.queueDepth !== undefined) {
+      headers["X-Queue-Depth"] = String(status.queueDepth)
+    }
   } else if (status.status === "completed") {
     statusCode = 200
+    headers["Cache-Control"] = `private, max-age=0, s-maxage=${Math.floor(
+      MINING_STATUS_TTL_MS / 1000,
+    )}`
   } else {
     statusCode = status.error?.retryable ? 503 : 409
     if (status.error?.retryAfterMs) {
       const retrySeconds = Math.max(1, Math.ceil(status.error.retryAfterMs / 1000))
       headers["Retry-After"] = retrySeconds.toString()
+      const backoffSeconds = Math.min(600, Math.pow(2, Math.ceil(Math.log2(retrySeconds))))
+      headers["X-Backoff-Hint"] = backoffSeconds.toString()
     }
   }
 
-  return NextResponse.json({ status, statusUrl: statusUrl.toString() }, { status: statusCode, headers })
-}
-
-async function runInlineMining(
-  userId: string,
-  idempotencyKey: string,
-  request: NextRequest,
-  respond: (response: NextResponse, tags?: Record<string, string | number>) => NextResponse,
-  tags: Record<string, string | number>,
-): Promise<NextResponse> {
-  console.warn("[mining] click:inline_fallback_start", { idempotencyKey })
-  try {
-    try {
-      await markMiningStatusProcessing(idempotencyKey)
-    } catch (err) {
-      console.warn("[mining] click:inline_mark_processing_failed", err)
-    }
-
-    const result = await withTimeout(
-      performMiningClick(userId, { idempotencyKey }),
-      INLINE_MINING_TIMEOUT_MS,
-      "inline_performMiningClick",
-    )
-
-    try {
-      await markMiningStatusCompleted(idempotencyKey, userId, {
-        ...result,
-        message: "Mining rewarded",
-        completedAt: new Date().toISOString(),
-      })
-    } catch (err) {
-      console.warn("[mining] click:inline_mark_completed_failed", err)
-    }
-
-    const completedStatus: MiningRequestStatus = {
-      status: "completed",
-      idempotencyKey,
-      userId,
-      requestedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      result,
-    }
-
-    console.info("[mining] click:inline_fallback_success", { idempotencyKey })
-    return respond(buildStatusResponse(completedStatus, request, { "X-Worker-Fallback": "inline" }), {
-      ...tags,
-      outcome: "inline_completed",
-    })
-  } catch (error: any) {
-    console.error("[mining] click:inline_fallback_error", error)
-    const isActionError = error instanceof MiningActionError
-    try {
-      await markMiningStatusFailed(idempotencyKey, userId, {
-        message: isActionError ? error.message : "Unexpected mining error",
-        retryable: !isActionError || (isActionError && error.status >= 500),
-        details: (error as any)?.details,
-      })
-    } catch (err) {
-      console.warn("[mining] click:inline_mark_failed_failed", err)
-    }
-
-    const statusCode = isActionError && error.status ? error.status : 503
-    return respond(
-      NextResponse.json(
-        {
-          error: isActionError ? error.message : "Mining failed. Please try again.",
-          ...(error as any)?.details,
-        },
-        {
-          status: statusCode,
-          headers: { "Idempotency-Key": idempotencyKey, "Cache-Control": NO_STORE },
-        },
-      ),
-      { ...tags, outcome: "inline_failure" },
-    )
-  }
+  return NextResponse.json(
+    { status, statusUrl: statusUrl.toString() },
+    {
+      status: statusCode,
+      headers,
+    },
+  )
 }
 
 export async function POST(request: NextRequest) {
@@ -155,198 +63,117 @@ export async function POST(request: NextRequest) {
   trackRequestRate("backend", { path })
 
   const respond = (response: NextResponse, tags: Record<string, string | number> = {}) => {
-    console.info("[mining] click:return", { path, status: response.status, tags, latencyMs: Date.now() - startedAt })
-    recordRequestLatency("backend", Date.now() - startedAt, { path, status: response.status, ...tags })
+    recordRequestLatency("backend", Date.now() - startedAt, {
+      path,
+      status: response.status,
+      ...tags,
+    })
     return response
   }
 
-  const mainFlow = async (): Promise<NextResponse> => {
-    console.info("[mining] click:start", { path })
+  const rateDecision = await enforceUnifiedRateLimit("backend", rateLimitContext, { path })
+  if (!rateDecision.allowed && rateDecision.response) {
+    return respond(rateDecision.response, { outcome: "rate_limited" })
+  }
 
-    /**
-     * ✅ FIX: Rate limit timeout par 503 mat do.
-     * Fail-open: agar limiter/redis slow ho, request ko proceed karne do.
-     * (Otherwise tumhara screenshot jaisa 503 + Retry-After:2 spam hota rahega.)
-     */
-    const shouldTryRateLimit = true
-    if (shouldTryRateLimit) {
-      try {
-        const rateDecision = await withTimeout(
-          enforceUnifiedRateLimit("backend", rateLimitContext, { path }),
-          RATE_LIMIT_TIMEOUT_MS,
-          "rate_limit",
-        )
-        if (!rateDecision.allowed && rateDecision.response) {
-          return respond(rateDecision.response, { outcome: "rate_limited" })
-        }
-      } catch (error) {
-        // 🔥 IMPORTANT: do NOT return 503 here
-        console.error("[mining] click:rate_limit_timeout_fail_open", error)
-        // continue request, but tag it
-      }
-    }
+  const idempotencyKey = request.headers.get("idempotency-key")?.trim()
+  if (!idempotencyKey) {
+    return respond(
+      NextResponse.json({ error: "Idempotency-Key header is required" }, { status: 400 }),
+      { outcome: "missing_idempotency" },
+    )
+  }
 
-    // 2) Auth
-    const userPayload = getUserFromRequest(request)
-    if (!userPayload) {
-      return respond(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), { outcome: "unauthorized" })
-    }
-    console.info("[mining] click:auth_ok", { userId: userPayload.userId })
+  const userPayload = getUserFromRequest(request)
+  if (!userPayload) {
+    return respond(
+      NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      { outcome: "unauthorized" },
+    )
+  }
 
-    // 3) Idempotency
-    let idempotencyKey =
-      request.headers.get("idempotency-key")?.trim() ||
-      request.headers.get("Idempotency-Key")?.trim() ||
-      ""
-    if (!idempotencyKey) idempotencyKey = makeIdempotencyKey()
+  const ip = getClientIp(request)
+  const queueAvailable = isRedisEnabled() && isMiningQueueEnabled()
 
-    const ip = getClientIp(request)
-
-    // Queue availability
-    const queueAvailable = isRedisEnabled() && isMiningQueueEnabled()
-    if (!queueAvailable) {
-      return runInlineMining(userPayload.userId, idempotencyKey, request, respond, { outcome: "queue_unavailable_inline" })
-    }
-
-    // Worker heartbeat (soft check; do not hard-fail)
-    let workerAlive = false
+  // Helper to perform mining immediately and return a completed status
+  const processDirect = async (successOutcome: string) => {
     try {
-      console.info("[mining] click:worker_check_start", { userId: userPayload.userId })
-      workerAlive = await withTimeout(isMiningWorkerAlive(WORKER_STALE_MS), 600, "worker_heartbeat")
-      console.info("[mining] click:worker_check_end", { alive: workerAlive })
-    } catch (error) {
-      console.error("[mining] click:worker_check_error", error)
-    }
+      const requestedAt = new Date()
+      const result = await performMiningClick(userPayload.userId, { idempotencyKey })
+      const completedAt = new Date()
 
-    // Redis status lookup can hang => timeout and fallback
-    let existingStatus: MiningRequestStatus | null = null
-    try {
-      console.info("[mining] click:redis_status_start", { idempotencyKey })
-      existingStatus = await withTimeout(
-        getMiningRequestStatus(idempotencyKey),
-        REDIS_TIMEOUT_MS,
-        "getMiningRequestStatus",
-      )
-      console.info("[mining] click:redis_status_end", { found: Boolean(existingStatus) })
-    } catch (e) {
-      console.warn("[mining] click:redis_status_timeout_inline", e)
-      return runInlineMining(userPayload.userId, idempotencyKey, request, respond, { outcome: "status_timeout_inline" })
-    }
+      await recordMiningMetrics({
+        processed: 1,
+        profitTotal: result.profit,
+        roiCapReached: result.roiCapReached ? 1 : 0,
+      })
 
-    if (existingStatus) {
-      if (existingStatus.userId !== userPayload.userId) {
-        return respond(
-          NextResponse.json(
-            { error: "Idempotency key belongs to another user" },
-            { status: 409, headers: { "Idempotency-Key": idempotencyKey, "Cache-Control": NO_STORE } },
-          ),
-          { outcome: "idempotency_conflict" },
-        )
-      }
-      return respond(buildStatusResponse(existingStatus, request), { outcome: "duplicate" })
-    }
-
-    // Enqueue can hang => timeout and fallback
-    try {
-      console.info("[mining] click:enqueue_start", { idempotencyKey })
-      const enqueueResult = await withTimeout(
-        enqueueMiningRequest({
-          userId: userPayload.userId,
-          idempotencyKey,
-          sourceIp: ip,
-          userAgent: request.headers.get("user-agent"),
-        }),
-        REDIS_TIMEOUT_MS,
-        "enqueueMiningRequest",
-      )
-
-      console.info("[mining] click:enqueue_end", {
+      const status: MiningRequestStatus = {
+        status: "completed",
         idempotencyKey,
-        enqueued: enqueueResult.enqueued,
-        status: enqueueResult.status.status,
-      })
-
-      // If worker is not alive, process inline as bounded fallback
-      if (!workerAlive && enqueueResult.status.status === "queued") {
-        console.warn("[mining] click:inline_fallback_start", { idempotencyKey })
-        try {
-          await markMiningStatusProcessing(idempotencyKey)
-          const result = await withTimeout(
-            performMiningClick(userPayload.userId, { idempotencyKey }),
-            INLINE_MINING_TIMEOUT_MS,
-            "inline_performMiningClick",
-          )
-          await markMiningStatusCompleted(idempotencyKey, userPayload.userId, {
-            ...result,
-            message: "Mining rewarded",
-            completedAt: new Date().toISOString(),
-          })
-
-          const completedStatus: MiningRequestStatus = {
-            status: "completed",
-            idempotencyKey,
-            userId: userPayload.userId,
-            requestedAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            result,
-          }
-          console.info("[mining] click:inline_fallback_success", { idempotencyKey })
-          return respond(buildStatusResponse(completedStatus, request, { "X-Worker-Fallback": "inline" }), {
-            outcome: "inline_completed",
-          })
-        } catch (error: any) {
-          console.error("[mining] click:inline_fallback_error", error)
-          const isActionError = error instanceof MiningActionError
-          await markMiningStatusFailed(idempotencyKey, userPayload.userId, {
-            message: isActionError ? error.message : "Unexpected mining error",
-            retryable: !isActionError || (isActionError && error.status >= 500),
-            details: (error as any)?.details,
-          })
-          const statusCode = isActionError && error.status ? error.status : 503
-          return respond(
-            NextResponse.json(
-              { error: isActionError ? error.message : "Mining failed. Please try again.", ...(error as any)?.details },
-              { status: statusCode, headers: { "Idempotency-Key": idempotencyKey, "Cache-Control": NO_STORE } },
-            ),
-            { outcome: "inline_failure" },
-          )
-        }
+        userId: userPayload.userId,
+        requestedAt: requestedAt.toISOString(),
+        updatedAt: completedAt.toISOString(),
+        sourceIp: ip,
+        userAgent: request.headers.get("user-agent"),
+        queueDepth: 0,
+        result: {
+          ...result,
+          // This is what the UI should show when the user clicks "Start Mining"
+          message: "Mining rewarded",
+          completedAt: completedAt.toISOString(),
+        },
       }
 
-      return respond(buildStatusResponse(enqueueResult.status, request, { "X-Worker-Alive": String(workerAlive) }), {
-        outcome: workerAlive ? "enqueued" : "enqueued_no_worker",
-      })
+      return respond(buildStatusResponse(status, request), { outcome: successOutcome })
     } catch (error) {
-      console.error("[mining] click:enqueue_error_inline_fallback", error)
-      return runInlineMining(userPayload.userId, idempotencyKey, request, respond, { outcome: "enqueue_failure_inline" })
+      if (error instanceof MiningActionError) {
+        return respond(
+          NextResponse.json({ error: error.message }, { status: error.status }),
+          { outcome: "mining_error" },
+        )
+      }
+
+      console.error("Mining click processing error", error)
+      return respond(
+        NextResponse.json(
+          { error: "Unable to process mining request" },
+          { status: 500 },
+        ),
+        { outcome: "processing_failure" },
+      )
     }
   }
 
-  const hardTimeoutPromise = new Promise<NextResponse>((resolve) => {
-    setTimeout(() => {
-      console.error("[mining] click:hard_timeout", { path })
-      resolve(
-        respond(
-          NextResponse.json(
-            { error: "Mining request timed out. Please retry.", retryAfterSeconds: 3 },
-            { status: 503, headers: { "Retry-After": "3", "Cache-Control": NO_STORE } },
-          ),
-          { outcome: "hard_timeout" },
-        ),
+  // If queue is disabled/unavailable, just process immediately.
+  if (!queueAvailable) {
+    return processDirect("completed_no_queue")
+  }
+
+  const existingStatus = await getMiningRequestStatus(idempotencyKey)
+  if (existingStatus) {
+    if (existingStatus.userId !== userPayload.userId) {
+      return respond(
+        NextResponse.json({ error: "Idempotency key belongs to another user" }, { status: 409 }),
+        { outcome: "idempotency_conflict" },
       )
-    }, HARD_RESPONSE_TIMEOUT_MS)
-  })
+    }
+
+    return respond(buildStatusResponse(existingStatus, request), { outcome: "duplicate" })
+  }
 
   try {
-    return await Promise.race([mainFlow(), hardTimeoutPromise])
+    const enqueueResult = await enqueueMiningRequest({
+      userId: userPayload.userId,
+      idempotencyKey,
+      sourceIp: ip,
+      userAgent: request.headers.get("user-agent"),
+    })
+
+    return respond(buildStatusResponse(enqueueResult.status, request), { outcome: "enqueued" })
   } catch (error) {
-    console.error("[mining] click:unhandled_error", error)
-    return respond(
-      NextResponse.json(
-        { error: "Unexpected mining error", retryAfterSeconds: 3 },
-        { status: 503, headers: { "Retry-After": "3", "Cache-Control": NO_STORE } },
-      ),
-      { outcome: "unhandled_error" },
-    )
+    // Queue failed – fall back to processing immediately so the user still gets rewarded
+    console.error("Mining click enqueue error, falling back to direct processing", error)
+    return processDirect("completed_after_enqueue_failure")
   }
 }

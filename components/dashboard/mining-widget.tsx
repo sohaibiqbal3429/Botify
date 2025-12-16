@@ -1,362 +1,366 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { toast } from "@/components/ui/use-toast"
+import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2, Zap, Clock, AlertCircle, Coins } from "lucide-react"
+import { motion } from "framer-motion"
 
-type MiningWidgetProps = {
+interface MiningWidgetProps {
   mining: {
-    requiresDeposit: boolean
-    canMine?: boolean
-    timeLeft?: number
-    nextEligibleAt?: string | null
+    canMine: boolean
+    nextEligibleAt: string
+    earnedInCycle: number
+    requiresDeposit?: boolean
+    minDeposit?: number
   }
-  onMiningSuccess?: () => void | Promise<void>
-}
-
-type MiningApiResponse = {
-  status?: { status?: string; error?: { message?: string; details?: Record<string, any> } }
-  statusUrl?: string
-  error?: string
-  retryAfterSeconds?: number
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-const POLL_INTERVAL_MS = 1000
-const MAX_POLL_ATTEMPTS = 20
-const MAX_POLL_INTERVAL_MS = 10_000
-const POLL_TOTAL_TIMEOUT_MS = 30_000
-const CLICK_TIMEOUT_MS = 12_000
-const STATUS_TIMEOUT_MS = 6_000
-const PENDING_STORAGE_KEY = "botify:mining:pending-status"
-const MAX_PENDING_AGE_MS = 1000 * 60 * 60 * 12 // half a day to avoid stale replays
-
-function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number, external?: AbortController) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-
-  if (init.signal) {
-    init.signal.addEventListener("abort", () => controller.abort(), { once: true })
-  }
-
-  if (external) {
-    external.signal.addEventListener("abort", () => controller.abort(), { once: true })
-  }
-
-  const merged = { ...init, signal: controller.signal }
-
-  return fetch(input, merged).finally(() => clearTimeout(timer))
+  onMiningSuccess?: () => void
 }
 
 export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
-  const [requesting, setRequesting] = useState(false)
-  const [polling, setPolling] = useState(false)
-  const [pendingStatusUrl, setPendingStatusUrl] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<{ error?: string; success?: string }>({})
+  const router = useRouter()
+  const [canMine, setCanMine] = useState(mining.canMine)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [polling, setPolling] = useState<{
+    key: string
+    url: string
+  } | null>(null)
+  const lastClickRef = useRef<number>(0)
+  const CLICK_DEBOUNCE_MS = 400
 
-  const pollingRef = useRef(false)
-  const pollAbortRef = useRef<AbortController | null>(null)
+  const formatTimeUntilNext = () => {
+    if (!mining.nextEligibleAt) return "Ready to mine!"
+    const now = new Date()
+    const nextTime = new Date(mining.nextEligibleAt)
+    const diff = nextTime.getTime() - now.getTime()
+
+    if (diff <= 0) return "Ready to mine!"
+
+    const hours = Math.floor(diff / (1000 * 60 * 60))
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds
+      .toString()
+      .padStart(2, "0")}`
+  }
+
+  const [nextWindowDisplay, setNextWindowDisplay] = useState(() => formatTimeUntilNext())
 
   useEffect(() => {
-    if (typeof window === "undefined") return
+    setCanMine(mining.canMine)
+  }, [mining.canMine])
 
-    try {
-      const raw = window.localStorage.getItem(PENDING_STORAGE_KEY)
-      if (!raw) return
-
-      const parsed = JSON.parse(raw) as { statusUrl: string; savedAt: number }
-      if (!parsed?.statusUrl || !parsed?.savedAt) {
-        window.localStorage.removeItem(PENDING_STORAGE_KEY)
-        return
-      }
-
-      if (Date.now() - parsed.savedAt > MAX_PENDING_AGE_MS) {
-        window.localStorage.removeItem(PENDING_STORAGE_KEY)
-        return
-      }
-
-      setPendingStatusUrl(parsed.statusUrl)
-      void pollStatus(parsed.statusUrl)
-    } catch (err) {
-      console.warn("Failed to restore pending mining status", err)
-      window.localStorage.removeItem(PENDING_STORAGE_KEY)
-    }
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      pollingRef.current = false
-      pollAbortRef.current?.abort()
-    }
-  }, [])
-
-  function storePendingStatus(statusUrl: string) {
-    try {
-      if (typeof window === "undefined") return
-      window.localStorage.setItem(
-        PENDING_STORAGE_KEY,
-        JSON.stringify({ statusUrl, savedAt: Date.now() }),
-      )
-      setPendingStatusUrl(statusUrl)
-    } catch (err) {
-      console.warn("Unable to persist pending mining status", err)
-    }
-  }
-
-  function clearPendingStatus() {
-    try {
-      if (typeof window === "undefined") return
-      window.localStorage.removeItem(PENDING_STORAGE_KEY)
-      setPendingStatusUrl(null)
-    } catch (err) {
-      console.warn("Unable to clear pending mining status", err)
-    }
-  }
-
-  async function pollStatus(statusUrl: string) {
-    if (pollingRef.current) return
-    pollingRef.current = true
-    setPolling(true)
-
-    try {
-      let attempt = 0
-      let queueDepthNotified = false
-      let nextDelay = POLL_INTERVAL_MS
-      const startedAt = Date.now()
-
-      while (attempt < MAX_POLL_ATTEMPTS && Date.now() - startedAt < POLL_TOTAL_TIMEOUT_MS) {
-        attempt += 1
-
-        if (document.visibilityState === "hidden") {
-          await sleep(POLL_INTERVAL_MS)
-          continue
-        }
-
-        pollAbortRef.current?.abort()
-        const controller = new AbortController()
-        pollAbortRef.current = controller
-
-        const res = await fetchWithTimeout(
-          statusUrl,
-          {
-            cache: "no-store",
-            credentials: "include",
-            signal: controller.signal,
-          },
-          STATUS_TIMEOUT_MS,
-          controller,
-        )
-
-        const data: any = await res.json().catch(() => ({}))
-        const retryAfterHeader = res.headers.get("Retry-After")
-        const retryAfterSeconds = retryAfterHeader ? Number.parseFloat(retryAfterHeader) : null
-        const backoffHintHeader = res.headers.get("X-Backoff-Hint")
-        const backoffHintSeconds = backoffHintHeader ? Number.parseFloat(backoffHintHeader) : null
-        const queueDepthHeader = res.headers.get("X-Queue-Depth")
-        const queueDepth = queueDepthHeader ? Number.parseInt(queueDepthHeader) : null
-
-        if (queueDepth && queueDepth > 2000 && !queueDepthNotified) {
-          toast({
-            title: "Mining queue is busy",
-            description: "We queued your reward safely. It may take a moment to finalize.",
-          })
-          queueDepthNotified = true
-        }
-
-        const retryDelay = Number.isFinite(retryAfterSeconds)
-          ? Math.max(POLL_INTERVAL_MS, retryAfterSeconds * 1000)
-          : POLL_INTERVAL_MS
-
-        const backoffHintDelay = Number.isFinite(backoffHintSeconds)
-          ? Math.max(POLL_INTERVAL_MS, backoffHintSeconds * 1000)
-          : POLL_INTERVAL_MS
-
-        if (!res.ok) {
-          const detail = data?.status?.error?.details
-          const message =
-            data?.error || data?.status?.error?.message || detail?.message || "Unable to fetch mining status"
-          if (detail?.nextEligibleAt || detail?.timeLeft) {
-            toast({
-              variant: "destructive",
-              title: "Mining cooldown active",
-              description:
-                detail?.nextEligibleAt ||
-                (detail?.timeLeft ? `Try again in ${Math.max(1, Math.ceil(detail.timeLeft / 60))} minutes.` : message),
-            })
-            clearPendingStatus()
-            return
-          }
-          throw new Error(message)
-        }
-
-        const state = data?.status?.status
-
-        if (state === "completed") {
-          toast({
-            title: "Mining rewarded",
-            description: "Your mining reward has been added successfully.",
-          })
-          clearPendingStatus()
-          await onMiningSuccess?.()
-          return
-        }
-
-        if (state === "failed") {
-          toast({
-            variant: "destructive",
-            title: "Mining failed",
-            description: data?.status?.error?.message || "Please try again",
-          })
-          clearPendingStatus()
-          return
-        }
-
-        if (state !== "queued" && state !== "processing") {
-          throw new Error("Unexpected mining status. Please try again.")
-        }
-
-        nextDelay = Math.min(
-          Math.max(retryDelay, backoffHintDelay, nextDelay * 1.4),
-          MAX_POLL_INTERVAL_MS,
-        )
-
-        if (queueDepth && queueDepth > 0) {
-          nextDelay = Math.min(MAX_POLL_INTERVAL_MS, Math.max(nextDelay, Math.min(queueDepth * 2, 8000)))
-        }
-
-        await sleep(nextDelay)
-      }
-
-      toast({
-        title: "Mining is finalizing",
-        description: "We will keep your request queued. Check back in a few moments.",
-      })
-      storePendingStatus(statusUrl)
-    } catch (err: any) {
-      const isAbort = err?.name === "AbortError"
-      toast({
-        variant: "destructive",
-        title: "Mining error",
-        description: isAbort ? "Mining status timed out. Please retry." : err?.message || "Something went wrong",
-      })
-      storePendingStatus(statusUrl)
-    } finally {
-      pollingRef.current = false
-      pollAbortRef.current?.abort()
-      setPolling(false)
-    }
-  }
-
-  async function handleMining() {
-    if (requesting || pollingRef.current) return
-
-    if (mining.requiresDeposit) {
-      toast({
-        variant: "destructive",
-        title: "Deposit required",
-        description: "Please deposit funds before mining.",
-      })
+  const handleMining = useCallback(async () => {
+    const now = Date.now()
+    if (now - lastClickRef.current < CLICK_DEBOUNCE_MS) {
+      setFeedback({ error: "Easy there! Please wait a moment before trying again." })
       return
     }
 
-    if (mining.canMine === false) {
-      const nextTime = mining.nextEligibleAt
-        ? new Date(mining.nextEligibleAt).toLocaleString()
-        : null
+    lastClickRef.current = now
 
-      toast({
-        variant: "destructive",
-        title: "Mining cooldown active",
-        description:
-          nextTime ||
-          (mining.timeLeft
-            ? `Try again in ${Math.max(1, Math.ceil(mining.timeLeft / 60))} minutes.`
-            : "Please try again later."),
-      })
+    if (!canMine) {
+      setFeedback({ error: "Mining is not available right now." })
       return
     }
 
-    setRequesting(true)
+    if (isSubmitting || polling) {
+      setFeedback({ error: "We are already processing a mining request." })
+      return
+    }
 
     try {
-      const idempotencyKey =
-        (globalThis.crypto as any)?.randomUUID?.() ||
-        `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`
-
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), CLICK_TIMEOUT_MS)
-
-      const res = await fetch("/api/mining/click", {
+      setFeedback({})
+      setIsSubmitting(true)
+      const idempotencyKey = crypto.randomUUID()
+      const response = await fetch("/api/mining/click", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
         },
-        credentials: "include",
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timer))
-
-      const data: MiningApiResponse = await res.json().catch(() => ({}))
-
-      const statusUrl = data?.statusUrl
-
-      if (res.status === 200 && data?.status?.status === "completed") {
-        toast({
-          title: "Mining rewarded",
-          description: "Your mining reward has been added.",
-        })
-        clearPendingStatus()
-        await onMiningSuccess?.()
-        setPolling(false)
-        return
-      }
-
-      if (res.status === 202 && statusUrl) {
-        storePendingStatus(statusUrl)
-        await pollStatus(statusUrl)
-        return
-      }
-
-      const errMessage = data?.error || data?.status?.error?.message || "Unable to start mining"
-      const detail = data?.status?.error?.details
-      if (detail?.nextEligibleAt || detail?.timeLeft) {
-        toast({
-          variant: "destructive",
-          title: "Mining cooldown active",
-          description:
-            detail?.nextEligibleAt ||
-            (detail?.timeLeft ? `Try again in ${Math.max(1, Math.ceil(detail.timeLeft / 60))} minutes.` : errMessage),
-        })
-        clearPendingStatus()
-        return
-      }
-
-      throw new Error(errMessage)
-    } catch (err: any) {
-      const isAbort = err?.name === "AbortError"
-      toast({
-        variant: "destructive",
-        title: "Mining error",
-        description: isAbort ? "Request timed out. Please try again." : err?.message || "Something went wrong",
       })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (response.status === 200) {
+        const result = data?.status?.result
+        const profit = typeof result?.profit === "number" ? result.profit : undefined
+        setFeedback({
+          success:
+            result?.message ??
+            (profit !== undefined ? `Mining successful! Earned $${profit.toFixed(2)}` : "Mining successful!"),
+        })
+        setCanMine(false)
+        setPolling(null)
+        router.refresh()
+        onMiningSuccess?.()
+        return
+      }
+
+      if (response.status === 202) {
+        setFeedback({ success: "Mining request queued. We'll update you shortly." })
+        setPolling({ key: idempotencyKey, url: data?.statusUrl })
+        return
+      }
+
+      if (response.status === 429 || response.status === 503) {
+        const retry = response.headers.get("Retry-After")
+        const backoff = response.headers.get("X-Backoff-Hint")
+        const retryMessage = retry ? ` Try again in ${retry} seconds.` : ""
+        const backoffMessage = backoff ? ` Recommended backoff: ${backoff}s.` : ""
+        setFeedback({
+          error: `${data?.error ?? "System temporarily busy."}${retryMessage}${backoffMessage}`,
+        })
+        return
+      }
+
+      setFeedback({ error: data?.error ?? "Unable to start mining. Please try again." })
+    } catch (error) {
+      console.error("Mining request failed", error)
+      setFeedback({ error: "Unable to reach the mining service. Please try again." })
     } finally {
-      setRequesting(false)
+      setIsSubmitting(false)
     }
-  }
+  }, [canMine, isSubmitting, polling, router])
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      const display = formatTimeUntilNext()
+      setNextWindowDisplay(display)
+      return display
+    }
+
+    const initialDisplay = updateCountdown()
+
+    if (initialDisplay === "Ready to mine!" || canMine) {
+      return
+    }
+
+    const interval = setInterval(() => {
+      const currentDisplay = updateCountdown()
+      if (currentDisplay === "Ready to mine!") {
+        clearInterval(interval)
+      }
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [canMine, mining.nextEligibleAt])
+
+  useEffect(() => {
+    if (!polling?.url) {
+      return
+    }
+
+    let cancelled = false
+
+    const poll = async () => {
+      try {
+        const response = await fetch(polling.url, { cache: "no-store" })
+        const data = await response.json().catch(() => ({}))
+        if (cancelled) {
+          return
+        }
+
+        if (response.status === 200) {
+          const result = data?.status?.result
+          const profit = typeof result?.profit === "number" ? result.profit : undefined
+          setFeedback({
+            success:
+              result?.message ??
+              (profit !== undefined ? `Mining successful! Earned $${profit.toFixed(2)}` : "Mining successful!"),
+          })
+          setCanMine(false)
+          setPolling(null)
+          router.refresh()
+          onMiningSuccess?.()
+          return
+        }
+
+        if (response.status === 202) {
+          const queueDepth = response.headers.get("X-Queue-Depth")
+          const status = data?.status?.status
+          const message =
+            status === "processing"
+              ? "Mining request is processing..."
+              : queueDepth
+                ? `Mining queued. Position ~${queueDepth}.`
+                : "Mining request queued..."
+          setFeedback({ success: message })
+          return
+        }
+
+        if (response.status === 429 || response.status === 503) {
+          const retry = response.headers.get("Retry-After")
+          const backoff = response.headers.get("X-Backoff-Hint")
+          const retryMessage = retry ? ` Try again in ${retry} seconds.` : ""
+          const backoffMessage = backoff ? ` Recommended backoff: ${backoff}s.` : ""
+          setFeedback({
+            error: `${data?.status?.error?.message ?? "System busy."}${retryMessage}${backoffMessage}`,
+          })
+        } else {
+          setFeedback({ error: data?.status?.error?.message ?? "Mining request failed." })
+        }
+        setPolling(null)
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+        console.error("Mining status poll failed", error)
+        setFeedback({ error: "Lost connection while waiting for mining response." })
+        setPolling(null)
+      }
+    }
+
+    const interval = setInterval(poll, 1500)
+    void poll()
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [polling, router])
+
+  const isMiningBusy = isSubmitting || Boolean(polling)
 
   return (
-    <div className="rounded-xl border p-6 space-y-4">
-      <div className="text-lg font-semibold">Mining</div>
+    <Card className="dashboard-card col-span-full lg:col-span-2 crypto-card">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-3">
+          <div className="relative">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shadow-lg">
+              <Coins className="w-6 h-6 text-primary-foreground" />
+            </div>
+            {canMine && (
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full animate-pulse" />
+            )}
+          </div>
+          <div>
+            <div className="crypto-gradient-text text-xl font-bold">Mint-Coin Mining</div>
+            <div className="text-sm text-muted-foreground dark:text-secondary-dark">Decentralized Mining Protocol</div>
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {feedback.error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{feedback.error}</AlertDescription>
+          </Alert>
+        )}
 
-      <Button onClick={handleMining} disabled={requesting || polling} className="w-full">
-        {requesting || polling ? "Mining..." : "Start Mining"}
-      </Button>
+        {feedback.success && (
+          <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+            <Zap className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800 dark:text-success-dark">{feedback.success}</AlertDescription>
+          </Alert>
+        )}
 
-      {pendingStatusUrl && !polling && (
-        <div className="text-sm text-muted-foreground">
-          Resuming your mining request. We&apos;ll notify you when it finishes.
+        <div className="text-center space-y-6">
+          <motion.div
+            className="relative mx-auto w-40 h-40 flex items-center justify-center"
+            whileHover={{ scale: canMine ? 1.05 : 1 }}
+            whileTap={{ scale: canMine ? 0.95 : 1 }}
+          >
+            <div
+              className={`w-full h-full rounded-full flex items-center justify-center text-5xl font-bold text-white shadow-2xl relative overflow-hidden ${
+                canMine && !isMiningBusy
+                  ? "bg-gradient-to-br from-primary to-accent cursor-pointer crypto-glow"
+                  : "bg-gradient-to-br from-gray-400 to-gray-600 cursor-not-allowed"
+              }`}
+              onClick={canMine && !isMiningBusy ? handleMining : undefined}
+            >
+              <Coins className="w-16 h-16" />
+              {canMine && !isMiningBusy && (
+                <>
+                  <motion.div
+                    className="absolute inset-0 rounded-full bg-gradient-to-br from-primary to-accent opacity-30"
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+                  />
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse" />
+                </>
+              )}
+            </div>
+          </motion.div>
+
+          <div className="space-y-3">
+            {canMine ? (
+              <Badge
+                variant="secondary"
+                className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-success-dark px-4 py-2"
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                Mining Available
+              </Badge>
+            ) : mining.requiresDeposit ? (
+              <Badge
+                variant="secondary"
+                className="bg-red-100 text-red-700 dark:bg-red-900 dark:text-error-dark px-4 py-2"
+              >
+                <AlertCircle className="w-4 h-4 mr-2" />
+                Deposit Required
+              </Badge>
+            ) : (
+              <Badge
+                variant="secondary"
+                className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-warn-dark px-4 py-2"
+              >
+                <Clock className="w-4 h-4 mr-2" />
+                Cooldown Period
+              </Badge>
+            )}
+            <div className="bg-muted rounded-lg p-3">
+              <p className="text-sm font-medium text-muted-foreground dark:text-secondary-dark">Next Mining Window</p>
+              <p className="text-lg font-mono font-bold text-foreground dark:text-primary-dark">{nextWindowDisplay}</p>
+            </div>
+          </div>
+
+          <Button
+            onClick={() => void handleMining()}
+            disabled={!canMine || isMiningBusy}
+            size="lg"
+            className="w-full max-w-sm h-12 text-lg font-semibold bg-gradient-to-r from-primary to-accent hover:from-accent hover:to-primary transition-all duration-300 shadow-lg hover:shadow-xl"
+          >
+            {isMiningBusy ? (
+              <>
+                <Loader2 className="mr-3 h-5 w-5 animate-spin" />
+                Mining in Progress...
+              </>
+            ) : (
+              <>
+                <Zap className="mr-3 h-5 w-5" />
+                {canMine ? "Start Mining" : "Mining Unavailable"}
+              </>
+            )}
+          </Button>
+
+          {mining.requiresDeposit && (
+            <Button
+              asChild
+              variant="outline"
+              className="w-full max-w-sm h-11 border-dashed border-slate-300 text-sm font-semibold"
+            >
+              <Link href="/wallet/deposit">
+                Make a deposit (min ${mining.minDeposit?.toFixed(0) ?? 30} USDT)
+              </Link>
+            </Button>
+          )}
+
+          {mining.earnedInCycle > 0 && (
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 rounded-lg p-4 border border-green-200 dark:border-green-800">
+              <p className="text-sm text-muted-foreground dark:text-muted-dark mb-1">Last Mining Cycle</p>
+              <p className="text-2xl font-bold crypto-gradient-text">+${mining.earnedInCycle.toFixed(2)}</p>
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </CardContent>
+    </Card>
   )
 }
