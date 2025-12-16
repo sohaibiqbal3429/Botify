@@ -11,12 +11,7 @@ export async function GET(request: NextRequest) {
     }
 
     const status = await getMiningStatus(userPayload.userId)
-    const response = NextResponse.json({ success: true, ...status })
-    response.headers.set(
-      "Cache-Control",
-      "private, max-age=0, s-maxage=60, stale-while-revalidate=30",
-    )
-    return response
+    return NextResponse.json({ success: true, ...status }, { headers: { "Cache-Control": "no-store" } })
   } catch (error: any) {
     if (error instanceof MiningActionError) {
       return NextResponse.json({ error: error.message }, { status: error.status })

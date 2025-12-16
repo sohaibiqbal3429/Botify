@@ -4,6 +4,7 @@ import { getUserFromRequest } from "@/lib/auth"
 import { getMiningRequestStatus } from "@/lib/services/mining-queue"
 import { enforceUnifiedRateLimit, getRateLimitContext } from "@/lib/rate-limit/unified"
 import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
+import { isRedisEnabled } from "@/lib/redis"
 
 export async function GET(request: NextRequest) {
   const startedAt = Date.now()
@@ -31,6 +32,16 @@ export async function GET(request: NextRequest) {
     return respond(NextResponse.json({ error: "Missing idempotency key" }, { status: 400 }), {
       outcome: "missing_idempotency",
     })
+  }
+
+  if (!isRedisEnabled()) {
+    return respond(
+      NextResponse.json(
+        { error: "Mining status is temporarily unavailable. Please try again shortly." },
+        { status: 503, headers: { "Cache-Control": "no-store", "X-Backoff-Hint": "8" } },
+      ),
+      { outcome: "redis_unavailable" },
+    )
   }
 
   const status = await getMiningRequestStatus(key)
