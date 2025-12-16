@@ -23,12 +23,8 @@ interface MiningWidgetProps {
 export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
   const [feedback, setFeedback] = useState<{ error?: string; success?: string }>({})
   const router = useRouter()
-  const [canMine, setCanMine] = useState(mining.canMine)
+
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [polling, setPolling] = useState<{
-    key: string
-    url: string
-  } | null>(null)
   const lastClickRef = useRef<number>(0)
   const CLICK_DEBOUNCE_MS = 400
 
@@ -37,7 +33,6 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
     const now = new Date()
     const nextTime = new Date(mining.nextEligibleAt)
     const diff = nextTime.getTime() - now.getTime()
-
     if (diff <= 0) return "Ready to mine!"
 
     const hours = Math.floor(diff / (1000 * 60 * 60))
@@ -52,8 +47,9 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
   const [nextWindowDisplay, setNextWindowDisplay] = useState(() => formatTimeUntilNext())
 
   useEffect(() => {
-    setCanMine(mining.canMine)
-  }, [mining.canMine])
+    const interval = setInterval(() => setNextWindowDisplay(formatTimeUntilNext()), 1000)
+    return () => clearInterval(interval)
+  }, [mining.nextEligibleAt])
 
   const handleMining = useCallback(async () => {
     const now = Date.now()
@@ -61,15 +57,9 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
       setFeedback({ error: "Easy there! Please wait a moment before trying again." })
       return
     }
-
     lastClickRef.current = now
 
-    if (!canMine) {
-      setFeedback({ error: "Mining is not available right now." })
-      return
-    }
-
-    if (isSubmitting || polling) {
+    if (isSubmitting) {
       setFeedback({ error: "We are already processing a mining request." })
       return
     }
@@ -77,49 +67,36 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
     try {
       setFeedback({})
       setIsSubmitting(true)
+
       const idempotencyKey = crypto.randomUUID()
+
       const response = await fetch("/api/mining/click", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
         },
+        cache: "no-store",
       })
 
       const data = await response.json().catch(() => ({}))
 
-      if (response.status === 200) {
+      // ✅ success (instant reward)
+      if (response.ok) {
         const result = data?.status?.result
         const profit = typeof result?.profit === "number" ? result.profit : undefined
+
         setFeedback({
           success:
             result?.message ??
             (profit !== undefined ? `Mining successful! Earned $${profit.toFixed(2)}` : "Mining successful!"),
         })
-        setCanMine(false)
-        setPolling(null)
+
         router.refresh()
         onMiningSuccess?.()
         return
       }
 
-      if (response.status === 202) {
-        setFeedback({ success: "Mining request queued. We'll update you shortly." })
-        setPolling({ key: idempotencyKey, url: data?.statusUrl })
-        return
-      }
-
-      if (response.status === 429 || response.status === 503) {
-        const retry = response.headers.get("Retry-After")
-        const backoff = response.headers.get("X-Backoff-Hint")
-        const retryMessage = retry ? ` Try again in ${retry} seconds.` : ""
-        const backoffMessage = backoff ? ` Recommended backoff: ${backoff}s.` : ""
-        setFeedback({
-          error: `${data?.error ?? "System temporarily busy."}${retryMessage}${backoffMessage}`,
-        })
-        return
-      }
-
+      // ❌ show backend error message
       setFeedback({ error: data?.error ?? "Unable to start mining. Please try again." })
     } catch (error) {
       console.error("Mining request failed", error)
@@ -127,107 +104,10 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
     } finally {
       setIsSubmitting(false)
     }
-  }, [canMine, isSubmitting, polling, router])
+  }, [isSubmitting, router, onMiningSuccess])
 
-  useEffect(() => {
-    const updateCountdown = () => {
-      const display = formatTimeUntilNext()
-      setNextWindowDisplay(display)
-      return display
-    }
-
-    const initialDisplay = updateCountdown()
-
-    if (initialDisplay === "Ready to mine!" || canMine) {
-      return
-    }
-
-    const interval = setInterval(() => {
-      const currentDisplay = updateCountdown()
-      if (currentDisplay === "Ready to mine!") {
-        clearInterval(interval)
-      }
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [canMine, mining.nextEligibleAt])
-
-  useEffect(() => {
-    if (!polling?.url) {
-      return
-    }
-
-    let cancelled = false
-
-    const poll = async () => {
-      try {
-        const response = await fetch(polling.url, { cache: "no-store" })
-        const data = await response.json().catch(() => ({}))
-        if (cancelled) {
-          return
-        }
-
-        if (response.status === 200) {
-          const result = data?.status?.result
-          const profit = typeof result?.profit === "number" ? result.profit : undefined
-          setFeedback({
-            success:
-              result?.message ??
-              (profit !== undefined ? `Mining successful! Earned $${profit.toFixed(2)}` : "Mining successful!"),
-          })
-          setCanMine(false)
-          setPolling(null)
-          router.refresh()
-          onMiningSuccess?.()
-          return
-        }
-
-        if (response.status === 202) {
-          const queueDepth = response.headers.get("X-Queue-Depth")
-          const status = data?.status?.status
-          const message =
-            status === "processing"
-              ? "Mining request is processing..."
-              : queueDepth
-                ? `Mining queued. Position ~${queueDepth}.`
-                : "Mining request queued..."
-          setFeedback({ success: message })
-          return
-        }
-
-        if (response.status === 429 || response.status === 503) {
-          const retry = response.headers.get("Retry-After")
-          const backoff = response.headers.get("X-Backoff-Hint")
-          const retryMessage = retry ? ` Try again in ${retry} seconds.` : ""
-          const backoffMessage = backoff ? ` Recommended backoff: ${backoff}s.` : ""
-          setFeedback({
-            error: `${data?.status?.error?.message ?? "System busy."}${retryMessage}${backoffMessage}`,
-          })
-        } else {
-          setFeedback({ error: data?.status?.error?.message ?? "Mining request failed." })
-        }
-        setPolling(null)
-      } catch (error) {
-        if (cancelled) {
-          return
-        }
-        console.error("Mining status poll failed", error)
-        setFeedback({ error: "Lost connection while waiting for mining response." })
-        setPolling(null)
-      }
-    }
-
-    const interval = setInterval(poll, 1500)
-    void poll()
-
-    return () => {
-      cancelled = true
-      clearInterval(interval)
-    }
-  }, [polling, router])
-
-  const isMiningBusy = isSubmitting || Boolean(polling)
-  const statusBadge = canMine
+  // UI status badge (visual only)
+  const statusBadge = mining.canMine
     ? { label: "Engine ready", color: "bg-emerald-500/20 text-emerald-200" }
     : mining.requiresDeposit
       ? { label: "Funding needed", color: "bg-amber-500/20 text-amber-200" }
@@ -250,6 +130,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
           <Badge className={`px-3 py-1 text-xs font-semibold ${statusBadge.color}`}>{statusBadge.label}</Badge>
         </CardTitle>
       </CardHeader>
+
       <CardContent className="space-y-5">
         {feedback.error && (
           <Alert variant="destructive" className="border-red-500/40 bg-red-500/10 text-red-100">
@@ -271,40 +152,45 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
               <Badge variant="outline" className="border-emerald-500/60 text-emerald-100">
                 <Clock className="mr-2 h-4 w-4" /> Next boost window
               </Badge>
-              <span className="rounded-md bg-slate-800 px-3 py-1 font-mono text-sm text-cyan-200">{nextWindowDisplay}</span>
-              <span className="rounded-md bg-slate-800 px-3 py-1 text-xs text-slate-300">{canMine ? "Ready to trigger" : "Auto unlocks once window opens"}</span>
+              <span className="rounded-md bg-slate-800 px-3 py-1 font-mono text-sm text-cyan-200">
+                {nextWindowDisplay}
+              </span>
+              <span className="rounded-md bg-slate-800 px-3 py-1 text-xs text-slate-300">
+                Click to attempt (backend enforces rules)
+              </span>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-2 rounded-lg border border-slate-800/70 bg-slate-900/80 p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-400">Cycle access</p>
-                <p className="text-lg font-semibold text-white">{canMine ? "Available" : "Queued"}</p>
-                <p className="text-xs text-slate-500">Governed by anti-abuse throttles</p>
+                <p className="text-lg font-semibold text-white">{mining.canMine ? "Available" : "Restricted"}</p>
+                <p className="text-xs text-slate-500">Final decision is server-side</p>
               </div>
               <div className="space-y-2 rounded-lg border border-slate-800/70 bg-slate-900/80 p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-400">Queue status</p>
-                <p className="text-lg font-semibold text-white">{polling ? "Processing" : "Idle"}</p>
-                <p className="text-xs text-slate-500">Requests are serialized per account</p>
+                <p className="text-lg font-semibold text-white">{isSubmitting ? "Processing" : "Idle"}</p>
+                <p className="text-xs text-slate-500">Instant reward path</p>
               </div>
               <div className="space-y-2 rounded-lg border border-slate-800/70 bg-slate-900/80 p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-400">Safety nets</p>
                 <p className="text-lg font-semibold text-white">Cooldown + KYC</p>
-                <p className="text-xs text-slate-500">Double-spend prevention active</p>
+                <p className="text-xs text-slate-500">Enforced by backend</p>
               </div>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-white">Boost controller</p>
-                <p className="text-xs text-slate-400">Fires a single earning cycle under the latest policy.</p>
+                <p className="text-xs text-slate-400">Click attempts a single earning cycle.</p>
               </div>
+
               <Button
                 onClick={() => void handleMining()}
-                disabled={!canMine || isMiningBusy}
+                disabled={isSubmitting}
                 size="lg"
                 className="h-11 min-w-[220px] bg-gradient-to-r from-cyan-500 to-emerald-400 text-slate-950 hover:brightness-110"
               >
-                {isMiningBusy ? (
+                {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     Engine running...
@@ -312,7 +198,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
                 ) : (
                   <>
                     <Zap className="mr-2 h-5 w-5" />
-                    {canMine ? "Start Boost Cycle" : "Queue Next Run"}
+                    Start Boost Cycle
                   </>
                 )}
               </Button>
@@ -344,15 +230,6 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
             <div className="rounded-lg border border-slate-800/70 bg-slate-950/70 p-3">
               <p className="text-sm text-slate-300">Next unlock</p>
               <p className="font-mono text-lg text-cyan-200">{nextWindowDisplay}</p>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-sm text-slate-300">Operational checklist</p>
-              <div className="flex flex-col gap-2 text-xs text-slate-400">
-                <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-emerald-400" /> API quota healthy</span>
-                <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-cyan-400" /> Cooldown enforcement enabled</span>
-                <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-amber-400" /> Fraud guard online</span>
-              </div>
             </div>
           </div>
         </div>
