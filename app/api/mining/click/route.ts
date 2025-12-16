@@ -16,7 +16,7 @@ import { enforceUnifiedRateLimit, getClientIp, getRateLimitContext } from "@/lib
 import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
 import { performMiningClick, MiningActionError } from "@/lib/services/mining"
 
-// バ. CRITICAL: mongoose/transactions must run on node runtime
+// CRITICAL: mongoose/transactions must run on node runtime
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
@@ -26,6 +26,52 @@ const WORKER_STALE_MS = 120_000
 const NO_STORE = "no-store"
 const HARD_RESPONSE_TIMEOUT_MS = 3200
 const INLINE_MINING_TIMEOUT_MS = 2000
+
+function makeIdempotencyKey() {
+  const g = globalThis as any
+  if (g?.crypto?.randomUUID) return g.crypto.randomUUID()
+  return `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms)
+    promise
+      .then((v) => resolve(v))
+      .catch((e) => reject(e))
+      .finally(() => clearTimeout(id))
+  })
+}
+
+function buildStatusResponse(
+  status: MiningRequestStatus,
+  request: NextRequest,
+  extraHeaders: Record<string, string> = {},
+): NextResponse<{ status: MiningRequestStatus; statusUrl: string }> {
+  const statusUrl = new URL("/api/mining/click/status", request.url)
+  statusUrl.searchParams.set("key", status.idempotencyKey)
+
+  let statusCode = 202
+  const headers: Record<string, string> = {
+    "Cache-Control": NO_STORE,
+    "Idempotency-Key": status.idempotencyKey,
+    ...extraHeaders,
+  }
+
+  if (status.status === "queued" || status.status === "processing") {
+    if (status.queueDepth !== undefined) headers["X-Queue-Depth"] = String(status.queueDepth)
+  } else if (status.status === "completed") {
+    statusCode = 200
+  } else {
+    statusCode = status.error?.retryable ? 503 : 409
+    if (status.error?.retryAfterMs) {
+      const retrySeconds = Math.max(1, Math.ceil(status.error.retryAfterMs / 1000))
+      headers["Retry-After"] = retrySeconds.toString()
+    }
+  }
+
+  return NextResponse.json({ status, statusUrl: statusUrl.toString() }, { status: statusCode, headers })
+}
 
 async function runInlineMining(
   userId: string,
@@ -39,7 +85,6 @@ async function runInlineMining(
     try {
       await markMiningStatusProcessing(idempotencyKey)
     } catch (err) {
-      // Redis may be down; continue inline without status persistence.
       console.warn("[mining] click:inline_mark_processing_failed", err)
     }
 
@@ -103,52 +148,6 @@ async function runInlineMining(
   }
 }
 
-function makeIdempotencyKey() {
-  const g = globalThis as any
-  if (g?.crypto?.randomUUID) return g.crypto.randomUUID()
-  return `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const id = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms)
-    promise
-      .then((v) => resolve(v))
-      .catch((e) => reject(e))
-      .finally(() => clearTimeout(id))
-  })
-}
-
-function buildStatusResponse(
-  status: MiningRequestStatus,
-  request: NextRequest,
-  extraHeaders: Record<string, string> = {},
-): NextResponse<{ status: MiningRequestStatus; statusUrl: string }> {
-  const statusUrl = new URL("/api/mining/click/status", request.url)
-  statusUrl.searchParams.set("key", status.idempotencyKey)
-
-  let statusCode = 202
-  const headers: Record<string, string> = {
-    "Cache-Control": NO_STORE,
-    "Idempotency-Key": status.idempotencyKey,
-    ...extraHeaders,
-  }
-
-  if (status.status === "queued" || status.status === "processing") {
-    if (status.queueDepth !== undefined) headers["X-Queue-Depth"] = String(status.queueDepth)
-  } else if (status.status === "completed") {
-    statusCode = 200
-  } else {
-    statusCode = status.error?.retryable ? 503 : 409
-    if (status.error?.retryAfterMs) {
-      const retrySeconds = Math.max(1, Math.ceil(status.error.retryAfterMs / 1000))
-      headers["Retry-After"] = retrySeconds.toString()
-    }
-  }
-
-  return NextResponse.json({ status, statusUrl: statusUrl.toString() }, { status: statusCode, headers })
-}
-
 export async function POST(request: NextRequest) {
   const startedAt = Date.now()
   const path = new URL(request.url).pathname
@@ -164,25 +163,27 @@ export async function POST(request: NextRequest) {
   const mainFlow = async (): Promise<NextResponse> => {
     console.info("[mining] click:start", { path })
 
-    // 1) Rate limit (bounded)
-    try {
-      const rateDecision = await withTimeout(
-        enforceUnifiedRateLimit("backend", rateLimitContext, { path }),
-        RATE_LIMIT_TIMEOUT_MS,
-        "rate_limit",
-      )
-      if (!rateDecision.allowed && rateDecision.response) {
-        return respond(rateDecision.response, { outcome: "rate_limited" })
+    /**
+     * ✅ FIX: Rate limit timeout par 503 mat do.
+     * Fail-open: agar limiter/redis slow ho, request ko proceed karne do.
+     * (Otherwise tumhara screenshot jaisa 503 + Retry-After:2 spam hota rahega.)
+     */
+    const shouldTryRateLimit = true
+    if (shouldTryRateLimit) {
+      try {
+        const rateDecision = await withTimeout(
+          enforceUnifiedRateLimit("backend", rateLimitContext, { path }),
+          RATE_LIMIT_TIMEOUT_MS,
+          "rate_limit",
+        )
+        if (!rateDecision.allowed && rateDecision.response) {
+          return respond(rateDecision.response, { outcome: "rate_limited" })
+        }
+      } catch (error) {
+        // 🔥 IMPORTANT: do NOT return 503 here
+        console.error("[mining] click:rate_limit_timeout_fail_open", error)
+        // continue request, but tag it
       }
-    } catch (error) {
-      console.error("[mining] click:rate_limit_timeout", error)
-      return respond(
-        NextResponse.json(
-          { error: "Mining temporarily unavailable. Please retry shortly.", retryAfterSeconds: 2 },
-          { status: 503, headers: { "Retry-After": "2", "Cache-Control": NO_STORE } },
-        ),
-        { outcome: "rate_limit_timeout" },
-      )
     }
 
     // 2) Auth
@@ -221,10 +222,14 @@ export async function POST(request: NextRequest) {
     let existingStatus: MiningRequestStatus | null = null
     try {
       console.info("[mining] click:redis_status_start", { idempotencyKey })
-      existingStatus = await withTimeout(getMiningRequestStatus(idempotencyKey), REDIS_TIMEOUT_MS, "getMiningRequestStatus")
+      existingStatus = await withTimeout(
+        getMiningRequestStatus(idempotencyKey),
+        REDIS_TIMEOUT_MS,
+        "getMiningRequestStatus",
+      )
       console.info("[mining] click:redis_status_end", { found: Boolean(existingStatus) })
     } catch (e) {
-      console.warn("Redis status lookup timed out", e)
+      console.warn("[mining] click:redis_status_timeout_inline", e)
       return runInlineMining(userPayload.userId, idempotencyKey, request, respond, { outcome: "status_timeout_inline" })
     }
 
@@ -261,7 +266,7 @@ export async function POST(request: NextRequest) {
         status: enqueueResult.status.status,
       })
 
-      // バ. If worker is not alive, process inline as a bounded fallback so users still finish
+      // If worker is not alive, process inline as bounded fallback
       if (!workerAlive && enqueueResult.status.status === "queued") {
         console.warn("[mining] click:inline_fallback_start", { idempotencyKey })
         try {
@@ -300,14 +305,8 @@ export async function POST(request: NextRequest) {
           const statusCode = isActionError && error.status ? error.status : 503
           return respond(
             NextResponse.json(
-              {
-                error: isActionError ? error.message : "Mining failed. Please try again.",
-                ...(error as any)?.details,
-              },
-              {
-                status: statusCode,
-                headers: { "Idempotency-Key": idempotencyKey, "Cache-Control": NO_STORE },
-              },
+              { error: isActionError ? error.message : "Mining failed. Please try again.", ...(error as any)?.details },
+              { status: statusCode, headers: { "Idempotency-Key": idempotencyKey, "Cache-Control": NO_STORE } },
             ),
             { outcome: "inline_failure" },
           )
@@ -318,7 +317,7 @@ export async function POST(request: NextRequest) {
         outcome: workerAlive ? "enqueued" : "enqueued_no_worker",
       })
     } catch (error) {
-      console.error("Mining click enqueue error/timeout", error)
+      console.error("[mining] click:enqueue_error_inline_fallback", error)
       return runInlineMining(userPayload.userId, idempotencyKey, request, respond, { outcome: "enqueue_failure_inline" })
     }
   }
@@ -330,13 +329,7 @@ export async function POST(request: NextRequest) {
         respond(
           NextResponse.json(
             { error: "Mining request timed out. Please retry.", retryAfterSeconds: 3 },
-            {
-              status: 503,
-              headers: {
-                "Retry-After": "3",
-                "Cache-Control": NO_STORE,
-              },
-            },
+            { status: 503, headers: { "Retry-After": "3", "Cache-Control": NO_STORE } },
           ),
           { outcome: "hard_timeout" },
         ),
