@@ -9,7 +9,7 @@ import { calculateMiningProfit, hasReachedROICap } from "@/lib/utils/referral"
 import { createTeamEarningPayouts } from "@/lib/services/rewards"
 import { resolveDailyProfitPercent } from "@/lib/services/settings"
 import { calculatePercentFromAmounts } from "@/lib/utils/numeric"
-import mongoose from "mongoose"
+import mongoose, { type ClientSession } from "mongoose"
 
 const DEFAULT_MINING_SETTINGS = {
   dailyProfitPercent: 1.5,
@@ -237,101 +237,122 @@ export async function performMiningClick(
   }
 
   // ---- ATOMIC TRANSACTION: credit + tx + cooldown + notification + TEAM PAYOUTS ----
-  const session = await mongoose.startSession()
-  try {
-    let result: MiningClickResult
+  const applyMiningUpdates = async (session?: ClientSession | null): Promise<MiningClickResult> => {
+    // 1) Credit balance and earnings
+    await Balance.updateOne(
+      { userId: user._id },
+      {
+        $inc: {
+          current: finalProfit,
+          totalBalance: finalProfit,
+          totalEarning: finalProfit,
+        },
+      },
+      session ? { session } : undefined,
+    )
 
-    await session.withTransaction(async () => {
-      // 1) Credit balance and earnings
-      await Balance.updateOne(
-        { userId: user._id },
+    await User.updateOne(
+      { _id: user._id },
+      { $inc: { roiEarnedTotal: finalProfit } },
+      session ? { session } : undefined,
+    )
+
+    // 2) Record earn transaction (source of truth for idempotency of team-earnings)
+    const miningResult: MiningClickResult = {
+      profit: finalProfit,
+      baseAmount,
+      profitPct: calculatePercentFromAmounts(finalProfit, baseAmount),
+      roiCapReached,
+      nextEligibleAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+      newBalance: Number(balance.current ?? 0) + finalProfit,
+      roiEarnedTotal: user.roiEarnedTotal + finalProfit,
+    }
+
+    const profitTransaction = await Transaction.create(
+      [
         {
-          $inc: {
-            current: finalProfit,
-            totalBalance: finalProfit,
-            totalEarning: finalProfit,
+          userId: user._id,
+          type: "earn",
+          amount: finalProfit,
+          status: "approved",
+          meta: {
+            source: "mining",
+            idempotencyKey,
+            baseAmount,
+            profitPct: miningResult.profitPct,
+            roiCapReached,
+            originalProfit: profit,
+            miningResult,
           },
         },
-        { session },
-      )
+      ],
+      session ? { session } : undefined,
+    ).then((docs) => docs[0])
 
-      await User.updateOne(
-        { _id: user._id },
-        { $inc: { roiEarnedTotal: finalProfit } },
-        { session },
-      )
+    // 3) Update mining session cooldown
+    const nextEligible = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    await MiningSession.updateOne(
+      { userId: user._id },
+      {
+        lastClickAt: now,
+        nextEligibleAt: nextEligible,
+        earnedInCycle: finalProfit,
+      },
+      session ? { session } : undefined,
+    )
 
-      // 2) Record earn transaction (source of truth for idempotency of team-earnings)
-      const miningResult: MiningClickResult = {
-        profit: finalProfit,
-        baseAmount,
-        profitPct: calculatePercentFromAmounts(finalProfit, baseAmount),
-        roiCapReached,
-        nextEligibleAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-        newBalance: Number(balance.current ?? 0) + finalProfit,
-        roiEarnedTotal: user.roiEarnedTotal + finalProfit,
-      }
-
-      const profitTransaction = await Transaction.create(
-        [
-          {
-            userId: user._id,
-            type: "earn",
-            amount: finalProfit,
-            status: "approved",
-            meta: {
-              source: "mining",
-              idempotencyKey,
-              baseAmount,
-              profitPct: miningResult.profitPct,
-              roiCapReached,
-              originalProfit: profit,
-              miningResult,
-            },
-          },
-        ],
-        { session },
-      ).then((docs) => docs[0])
-
-      // 3) Update mining session cooldown
-      const nextEligible = new Date(now.getTime() + 24 * 60 * 60 * 1000)
-      await MiningSession.updateOne(
-        { userId: user._id },
+    // 4) Notify user
+    await Notification.create(
+      [
         {
-          lastClickAt: now,
-          nextEligibleAt: nextEligible,
-          earnedInCycle: finalProfit,
+          userId: user._id,
+          kind: "mining-reward",
+          title: "Mining Reward Earned",
+          body: `You earned $${finalProfit.toFixed(2)} from mining! ${roiCapReached ? "ROI cap reached." : ""}`,
         },
-        { session },
-      )
+      ],
+      session ? { session } : undefined,
+    )
 
-      // 4) Notify user
-      await Notification.create(
-        [
-          {
-            userId: user._id,
-            kind: "mining-reward",
-            title: "Mining Reward Earned",
-            body: `You earned $${finalProfit.toFixed(2)} from mining! ${roiCapReached ? "ROI cap reached." : ""}`,
-          },
-        ],
-        { session },
-      )
-
-      // 5) TEAM DAILY EARNINGS (Claimables): L1 = 2%, L2 = 1%
-      // Idempotent at rewards layer via (type, sourceTxId, receiverUserId) unique key.
-      await createTeamEarningPayouts(user._id.toString(), finalProfit, {
-        earningTransactionId: profitTransaction._id.toString(),
-        earningAt: now,
-        // if your rewards service supports sessions, this ensures full atomicity:
-        // @ts-ignore optional for in-memory, used in real Mongo
-        session,
-      })
-
-      result = miningResult
+    // 5) TEAM DAILY EARNINGS (Claimables): L1 = 2%, L2 = 1%
+    // Idempotent at rewards layer via (type, sourceTxId, receiverUserId) unique key.
+    await createTeamEarningPayouts(user._id.toString(), finalProfit, {
+      earningTransactionId: profitTransaction._id.toString(),
+      earningAt: now,
+      // if your rewards service supports sessions, this ensures full atomicity:
+      // @ts-ignore optional for in-memory, used in real Mongo
+      session: session ?? undefined,
     })
 
-    // @ts-expect-error set in transaction scope
+    return miningResult
+  }
+
+  const session = await mongoose.startSession()
+  try {
+    // Attempt a transaction first so hosted Mongo/replica deployments get full atomicity.
+    let result: MiningClickResult | null = null
+    await session
+      .withTransaction(async () => {
+        result = await applyMiningUpdates(session)
+      })
+      .catch(async (error) => {
+        // Transactions are not available on standalone Mongo instances. Fall back to
+        // best-effort sequential updates instead of failing the mining request entirely.
+        const transactionUnavailable =
+          error?.code === 20 ||
+          error?.code === 251 ||
+          /replica set|Transactions are not allowed/i.test(error?.message ?? "")
+
+        if (!transactionUnavailable) {
+          throw error
+        }
+
+        console.warn("[mining] Mongo transaction unavailable, falling back to non-transactional flow", error)
+        await session.endSession()
+        result = await applyMiningUpdates(null)
+      })
+
+    // @ts-expect-error result assigned in transaction or fallback
     return result!
   } finally {
     await session.endSession()
