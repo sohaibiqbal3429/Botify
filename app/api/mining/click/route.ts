@@ -7,20 +7,25 @@ import {
   getMiningRequestStatus,
   isMiningQueueEnabled,
   isMiningWorkerAlive,
+  markMiningStatusCompleted,
+  markMiningStatusFailed,
+  markMiningStatusProcessing,
   type MiningRequestStatus,
 } from "@/lib/services/mining-queue"
 import { enforceUnifiedRateLimit, getClientIp, getRateLimitContext } from "@/lib/rate-limit/unified"
 import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
+import { performMiningClick, MiningActionError } from "@/lib/services/mining"
 
 // バ. CRITICAL: mongoose/transactions must run on node runtime
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-const REDIS_TIMEOUT_MS = 1200
-const RATE_LIMIT_TIMEOUT_MS = 1200
+const REDIS_TIMEOUT_MS = 1400
+const RATE_LIMIT_TIMEOUT_MS = 1400
 const WORKER_STALE_MS = 120_000
 const NO_STORE = "no-store"
-const HARD_RESPONSE_TIMEOUT_MS = 1800
+const HARD_RESPONSE_TIMEOUT_MS = 3200
+const INLINE_MINING_TIMEOUT_MS = 2000
 
 function makeIdempotencyKey() {
   const g = globalThis as any
@@ -132,43 +137,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Worker heartbeat
+    // Worker heartbeat (soft check; do not hard-fail)
+    let workerAlive = false
     try {
       console.info("[mining] click:worker_check_start", { userId: userPayload.userId })
-      const workerAlive = await withTimeout(isMiningWorkerAlive(WORKER_STALE_MS), 600, "worker_heartbeat")
+      workerAlive = await withTimeout(isMiningWorkerAlive(WORKER_STALE_MS), 600, "worker_heartbeat")
       console.info("[mining] click:worker_check_end", { alive: workerAlive })
-      if (!workerAlive) {
-        return respond(
-          NextResponse.json(
-            { error: "Mining worker unavailable. Please try again soon.", retryAfterSeconds: 5 },
-            {
-              status: 503,
-              headers: {
-                "Retry-After": "5",
-                "Idempotency-Key": idempotencyKey,
-                "Cache-Control": NO_STORE,
-              },
-            },
-          ),
-          { outcome: "worker_unavailable" },
-        )
-      }
     } catch (error) {
       console.error("[mining] click:worker_check_error", error)
-      return respond(
-        NextResponse.json(
-          { error: "Mining worker status unknown. Please retry.", retryAfterSeconds: 5 },
-          {
-            status: 503,
-            headers: {
-              "Retry-After": "5",
-              "Idempotency-Key": idempotencyKey,
-              "Cache-Control": NO_STORE,
-            },
-          },
-        ),
-        { outcome: "worker_check_timeout" },
-      )
     }
 
     // Redis status lookup can hang => timeout and fallback
@@ -228,7 +204,62 @@ export async function POST(request: NextRequest) {
         status: enqueueResult.status.status,
       })
 
-      return respond(buildStatusResponse(enqueueResult.status, request), { outcome: "enqueued" })
+      // バ. If worker is not alive, process inline as a bounded fallback so users still finish
+      if (!workerAlive && enqueueResult.status.status === "queued") {
+        console.warn("[mining] click:inline_fallback_start", { idempotencyKey })
+        try {
+          await markMiningStatusProcessing(idempotencyKey)
+          const result = await withTimeout(
+            performMiningClick(userPayload.userId, { idempotencyKey }),
+            INLINE_MINING_TIMEOUT_MS,
+            "inline_performMiningClick",
+          )
+          await markMiningStatusCompleted(idempotencyKey, userPayload.userId, {
+            ...result,
+            message: "Mining rewarded",
+            completedAt: new Date().toISOString(),
+          })
+
+          const completedStatus: MiningRequestStatus = {
+            status: "completed",
+            idempotencyKey,
+            userId: userPayload.userId,
+            requestedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            result,
+          }
+          console.info("[mining] click:inline_fallback_success", { idempotencyKey })
+          return respond(buildStatusResponse(completedStatus, request, { "X-Worker-Fallback": "inline" }), {
+            outcome: "inline_completed",
+          })
+        } catch (error: any) {
+          console.error("[mining] click:inline_fallback_error", error)
+          const isActionError = error instanceof MiningActionError
+          await markMiningStatusFailed(idempotencyKey, userPayload.userId, {
+            message: isActionError ? error.message : "Unexpected mining error",
+            retryable: !isActionError || (isActionError && error.status >= 500),
+            details: (error as any)?.details,
+          })
+          const statusCode = isActionError && error.status ? error.status : 503
+          return respond(
+            NextResponse.json(
+              {
+                error: isActionError ? error.message : "Mining failed. Please try again.",
+                ...(error as any)?.details,
+              },
+              {
+                status: statusCode,
+                headers: { "Idempotency-Key": idempotencyKey, "Cache-Control": NO_STORE },
+              },
+            ),
+            { outcome: "inline_failure" },
+          )
+        }
+      }
+
+      return respond(buildStatusResponse(enqueueResult.status, request, { "X-Worker-Alive": String(workerAlive) }), {
+        outcome: workerAlive ? "enqueued" : "enqueued_no_worker",
+      })
     } catch (error) {
       console.error("Mining click enqueue error/timeout", error)
       return respond(
