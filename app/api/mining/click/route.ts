@@ -9,8 +9,6 @@ import {
   MINING_STATUS_TTL_MS,
   type MiningRequestStatus,
 } from "@/lib/services/mining-queue"
-import { MiningActionError, performMiningClick } from "@/lib/services/mining"
-import { recordMiningMetrics } from "@/lib/services/mining-metrics"
 import { enforceUnifiedRateLimit, getClientIp, getRateLimitContext } from "@/lib/rate-limit/unified"
 import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
 
@@ -97,75 +95,31 @@ export async function POST(request: NextRequest) {
 
   const ip = getClientIp(request)
 
-  // ✅ IMPORTANT: Redis/Queue can hang => fail fast
+  // ✅ Queue is mandatory for non-blocking mining
   const queueAvailable = isRedisEnabled() && isMiningQueueEnabled()
-
-  const processDirect = async (successOutcome: string) => {
-    try {
-      const requestedAt = new Date()
-
-      // ✅ also protect DB work with timeout so it can't hang forever
-      const result = await withTimeout(
-        performMiningClick(userPayload.userId, { idempotencyKey }),
-        10_000,
-        "performMiningClick",
-      )
-
-      const completedAt = new Date()
-
-      await recordMiningMetrics({
-        processed: 1,
-        profitTotal: result.profit,
-        roiCapReached: result.roiCapReached ? 1 : 0,
-      })
-
-      const status: MiningRequestStatus = {
-        status: "completed",
-        idempotencyKey,
-        userId: userPayload.userId,
-        requestedAt: requestedAt.toISOString(),
-        updatedAt: completedAt.toISOString(),
-        sourceIp: ip,
-        userAgent: request.headers.get("user-agent"),
-        queueDepth: 0,
-        result: {
-          ...result,
-          // ✅ UI message
-          message: "Mining rewarded",
-          completedAt: completedAt.toISOString(),
-        },
-      }
-
-      return respond(buildStatusResponse(status, request), { outcome: successOutcome })
-    } catch (error) {
-      if (error instanceof MiningActionError) {
-        return respond(
-          NextResponse.json({ error: error.message }, { status: error.status, headers: { "Idempotency-Key": idempotencyKey } }),
-          { outcome: "mining_error" },
-        )
-      }
-
-      console.error("Mining click processing error", error)
-      return respond(
-        NextResponse.json(
-          { error: (error as any)?.message || "Unable to start mining. Please try again." },
-          { status: 500, headers: { "Idempotency-Key": idempotencyKey } },
-        ),
-        { outcome: "processing_failure" },
-      )
-    }
+  if (!queueAvailable) {
+    return respond(
+      NextResponse.json(
+        { error: "Mining queue unavailable. Please try again soon." },
+        { status: 503, headers: { "Idempotency-Key": idempotencyKey } },
+      ),
+      { outcome: "queue_unavailable" },
+    )
   }
-
-  // ✅ If queue not available => direct
-  if (!queueAvailable) return processDirect("completed_no_queue")
 
   // ✅ Redis status lookup can hang => timeout and fallback to direct
   let existingStatus: MiningRequestStatus | null = null
   try {
     existingStatus = await withTimeout(getMiningRequestStatus(idempotencyKey), 800, "getMiningRequestStatus")
   } catch (e) {
-    console.warn("Redis status lookup timed out, falling back to direct", e)
-    return processDirect("completed_after_status_timeout")
+    console.warn("Redis status lookup timed out", e)
+    return respond(
+      NextResponse.json(
+        { error: "Mining is temporarily unavailable. Please try again." },
+        { status: 503, headers: { "Idempotency-Key": idempotencyKey } },
+      ),
+      { outcome: "status_timeout" },
+    )
   }
 
   if (existingStatus) {
@@ -193,7 +147,13 @@ export async function POST(request: NextRequest) {
 
     return respond(buildStatusResponse(enqueueResult.status, request), { outcome: "enqueued" })
   } catch (error) {
-    console.error("Mining click enqueue error/timeout; falling back to direct processing", error)
-    return processDirect("completed_after_enqueue_failure")
+    console.error("Mining click enqueue error/timeout", error)
+    return respond(
+      NextResponse.json(
+        { error: "Unable to queue mining request. Please try again." },
+        { status: 503, headers: { "Idempotency-Key": idempotencyKey } },
+      ),
+      { outcome: "enqueue_failure" },
+    )
   }
 }
