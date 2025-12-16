@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/use-toast"
 
@@ -28,6 +28,14 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
 
   // ✅ prevent multiple parallel polls
   const pollingRef = useRef(false)
+  const pollAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => {
+      pollingRef.current = false
+      pollAbortRef.current?.abort()
+    }
+  }, [])
 
   async function pollStatus(statusUrl: string) {
     if (pollingRef.current) return
@@ -36,18 +44,35 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
 
     try {
       const started = Date.now()
-      let interval = 700
+      let interval = 1000
+      let attempts = 0
 
       while (Date.now() - started < 30_000) {
+        // pause polling if tab not visible to avoid piling requests
+        if (document.visibilityState === "hidden") {
+          await sleep(1000)
+          continue
+        }
+
+        attempts += 1
+        if (attempts > 20) {
+          throw new Error("Mining is taking too long. Please refresh.")
+        }
+
+        pollAbortRef.current?.abort()
+        const controller = new AbortController()
+        pollAbortRef.current = controller
+
         const res = await fetch(statusUrl, {
           cache: "no-store",
           credentials: "include",
+          signal: controller.signal,
         })
 
         const data: any = await res.json().catch(() => ({}))
 
         if (!res.ok) {
-          throw new Error(data?.error || "Unable to fetch mining status")
+          throw new Error(data?.error || data?.status?.error?.message || "Unable to fetch mining status")
         }
 
         const state = data?.status?.status
