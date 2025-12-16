@@ -20,6 +20,7 @@ const REDIS_TIMEOUT_MS = 1200
 const RATE_LIMIT_TIMEOUT_MS = 1200
 const WORKER_STALE_MS = 120_000
 const NO_STORE = "no-store"
+const HARD_RESPONSE_TIMEOUT_MS = 1800
 
 function makeIdempotencyKey() {
   const g = globalThis as any
@@ -79,66 +80,84 @@ export async function POST(request: NextRequest) {
     return response
   }
 
-  console.info("[mining] click:start", { path })
+  const mainFlow = async (): Promise<NextResponse> => {
+    console.info("[mining] click:start", { path })
 
-  // 1) Rate limit (bounded)
-  try {
-    const rateDecision = await withTimeout(
-      enforceUnifiedRateLimit("backend", rateLimitContext, { path }),
-      RATE_LIMIT_TIMEOUT_MS,
-      "rate_limit",
-    )
-    if (!rateDecision.allowed && rateDecision.response) {
-      return respond(rateDecision.response, { outcome: "rate_limited" })
-    }
-  } catch (error) {
-    console.error("[mining] click:rate_limit_timeout", error)
-    return respond(
-      NextResponse.json(
-        { error: "Mining temporarily unavailable. Please retry shortly.", retryAfterSeconds: 2 },
-        { status: 503, headers: { "Retry-After": "2", "Cache-Control": NO_STORE } },
-      ),
-      { outcome: "rate_limit_timeout" },
-    )
-  }
-
-  // 2) Auth
-  const userPayload = getUserFromRequest(request)
-  if (!userPayload) {
-    return respond(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), { outcome: "unauthorized" })
-  }
-  console.info("[mining] click:auth_ok", { userId: userPayload.userId })
-
-  // 3) Idempotency
-  let idempotencyKey =
-    request.headers.get("idempotency-key")?.trim() ||
-    request.headers.get("Idempotency-Key")?.trim() ||
-    ""
-  if (!idempotencyKey) idempotencyKey = makeIdempotencyKey()
-
-  const ip = getClientIp(request)
-
-  // Queue availability
-  const queueAvailable = isRedisEnabled() && isMiningQueueEnabled()
-  if (!queueAvailable) {
-    return respond(
-      NextResponse.json(
-        { error: "Mining queue unavailable. Please try again soon." },
-        { status: 503, headers: { "Idempotency-Key": idempotencyKey, "Cache-Control": NO_STORE } },
-      ),
-      { outcome: "queue_unavailable" },
-    )
-  }
-
-  // Worker heartbeat
-  try {
-    console.info("[mining] click:worker_check_start", { userId: userPayload.userId })
-    const workerAlive = await withTimeout(isMiningWorkerAlive(WORKER_STALE_MS), 600, "worker_heartbeat")
-    console.info("[mining] click:worker_check_end", { alive: workerAlive })
-    if (!workerAlive) {
+    // 1) Rate limit (bounded)
+    try {
+      const rateDecision = await withTimeout(
+        enforceUnifiedRateLimit("backend", rateLimitContext, { path }),
+        RATE_LIMIT_TIMEOUT_MS,
+        "rate_limit",
+      )
+      if (!rateDecision.allowed && rateDecision.response) {
+        return respond(rateDecision.response, { outcome: "rate_limited" })
+      }
+    } catch (error) {
+      console.error("[mining] click:rate_limit_timeout", error)
       return respond(
         NextResponse.json(
-          { error: "Mining worker unavailable. Please try again soon.", retryAfterSeconds: 5 },
+          { error: "Mining temporarily unavailable. Please retry shortly.", retryAfterSeconds: 2 },
+          { status: 503, headers: { "Retry-After": "2", "Cache-Control": NO_STORE } },
+        ),
+        { outcome: "rate_limit_timeout" },
+      )
+    }
+
+    // 2) Auth
+    const userPayload = getUserFromRequest(request)
+    if (!userPayload) {
+      return respond(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), { outcome: "unauthorized" })
+    }
+    console.info("[mining] click:auth_ok", { userId: userPayload.userId })
+
+    // 3) Idempotency
+    let idempotencyKey =
+      request.headers.get("idempotency-key")?.trim() ||
+      request.headers.get("Idempotency-Key")?.trim() ||
+      ""
+    if (!idempotencyKey) idempotencyKey = makeIdempotencyKey()
+
+    const ip = getClientIp(request)
+
+    // Queue availability
+    const queueAvailable = isRedisEnabled() && isMiningQueueEnabled()
+    if (!queueAvailable) {
+      return respond(
+        NextResponse.json(
+          { error: "Mining queue unavailable. Please try again soon." },
+          { status: 503, headers: { "Idempotency-Key": idempotencyKey, "Cache-Control": NO_STORE } },
+        ),
+        { outcome: "queue_unavailable" },
+      )
+    }
+
+    // Worker heartbeat
+    try {
+      console.info("[mining] click:worker_check_start", { userId: userPayload.userId })
+      const workerAlive = await withTimeout(isMiningWorkerAlive(WORKER_STALE_MS), 600, "worker_heartbeat")
+      console.info("[mining] click:worker_check_end", { alive: workerAlive })
+      if (!workerAlive) {
+        return respond(
+          NextResponse.json(
+            { error: "Mining worker unavailable. Please try again soon.", retryAfterSeconds: 5 },
+            {
+              status: 503,
+              headers: {
+                "Retry-After": "5",
+                "Idempotency-Key": idempotencyKey,
+                "Cache-Control": NO_STORE,
+              },
+            },
+          ),
+          { outcome: "worker_unavailable" },
+        )
+      }
+    } catch (error) {
+      console.error("[mining] click:worker_check_error", error)
+      return respond(
+        NextResponse.json(
+          { error: "Mining worker status unknown. Please retry.", retryAfterSeconds: 5 },
           {
             status: 503,
             headers: {
@@ -148,100 +167,118 @@ export async function POST(request: NextRequest) {
             },
           },
         ),
-        { outcome: "worker_unavailable" },
+        { outcome: "worker_check_timeout" },
       )
     }
-  } catch (error) {
-    console.error("[mining] click:worker_check_error", error)
-    return respond(
-      NextResponse.json(
-        { error: "Mining worker status unknown. Please retry.", retryAfterSeconds: 5 },
-        {
-          status: 503,
-          headers: {
-            "Retry-After": "5",
-            "Idempotency-Key": idempotencyKey,
-            "Cache-Control": NO_STORE,
-          },
-        },
-      ),
-      { outcome: "worker_check_timeout" },
-    )
-  }
 
-  // Redis status lookup can hang => timeout and fallback
-  let existingStatus: MiningRequestStatus | null = null
-  try {
-    console.info("[mining] click:redis_status_start", { idempotencyKey })
-    existingStatus = await withTimeout(getMiningRequestStatus(idempotencyKey), REDIS_TIMEOUT_MS, "getMiningRequestStatus")
-    console.info("[mining] click:redis_status_end", { found: Boolean(existingStatus) })
-  } catch (e) {
-    console.warn("Redis status lookup timed out", e)
-    return respond(
-      NextResponse.json(
-        { error: "Mining is temporarily unavailable. Please try again.", retryAfterSeconds: 2 },
-        {
-          status: 503,
-          headers: {
-            "Idempotency-Key": idempotencyKey,
-            "Retry-After": "2",
-            "Cache-Control": NO_STORE,
-          },
-        },
-      ),
-      { outcome: "status_timeout" },
-    )
-  }
-
-  if (existingStatus) {
-    if (existingStatus.userId !== userPayload.userId) {
+    // Redis status lookup can hang => timeout and fallback
+    let existingStatus: MiningRequestStatus | null = null
+    try {
+      console.info("[mining] click:redis_status_start", { idempotencyKey })
+      existingStatus = await withTimeout(getMiningRequestStatus(idempotencyKey), REDIS_TIMEOUT_MS, "getMiningRequestStatus")
+      console.info("[mining] click:redis_status_end", { found: Boolean(existingStatus) })
+    } catch (e) {
+      console.warn("Redis status lookup timed out", e)
       return respond(
         NextResponse.json(
-          { error: "Idempotency key belongs to another user" },
-          { status: 409, headers: { "Idempotency-Key": idempotencyKey, "Cache-Control": NO_STORE } },
+          { error: "Mining is temporarily unavailable. Please try again.", retryAfterSeconds: 2 },
+          {
+            status: 503,
+            headers: {
+              "Idempotency-Key": idempotencyKey,
+              "Retry-After": "2",
+              "Cache-Control": NO_STORE,
+            },
+          },
         ),
-        { outcome: "idempotency_conflict" },
+        { outcome: "status_timeout" },
       )
     }
-    return respond(buildStatusResponse(existingStatus, request), { outcome: "duplicate" })
+
+    if (existingStatus) {
+      if (existingStatus.userId !== userPayload.userId) {
+        return respond(
+          NextResponse.json(
+            { error: "Idempotency key belongs to another user" },
+            { status: 409, headers: { "Idempotency-Key": idempotencyKey, "Cache-Control": NO_STORE } },
+          ),
+          { outcome: "idempotency_conflict" },
+        )
+      }
+      return respond(buildStatusResponse(existingStatus, request), { outcome: "duplicate" })
+    }
+
+    // Enqueue can hang => timeout and fallback
+    try {
+      console.info("[mining] click:enqueue_start", { idempotencyKey })
+      const enqueueResult = await withTimeout(
+        enqueueMiningRequest({
+          userId: userPayload.userId,
+          idempotencyKey,
+          sourceIp: ip,
+          userAgent: request.headers.get("user-agent"),
+        }),
+        REDIS_TIMEOUT_MS,
+        "enqueueMiningRequest",
+      )
+
+      console.info("[mining] click:enqueue_end", {
+        idempotencyKey,
+        enqueued: enqueueResult.enqueued,
+        status: enqueueResult.status.status,
+      })
+
+      return respond(buildStatusResponse(enqueueResult.status, request), { outcome: "enqueued" })
+    } catch (error) {
+      console.error("Mining click enqueue error/timeout", error)
+      return respond(
+        NextResponse.json(
+          { error: "Unable to queue mining request. Please try again.", retryAfterSeconds: 3 },
+          {
+            status: 503,
+            headers: {
+              "Idempotency-Key": idempotencyKey,
+              "Retry-After": "3",
+              "Cache-Control": NO_STORE,
+            },
+          },
+        ),
+        { outcome: "enqueue_failure" },
+      )
+    }
   }
 
-  // Enqueue can hang => timeout and fallback
+  const hardTimeoutPromise = new Promise<NextResponse>((resolve) => {
+    setTimeout(() => {
+      console.error("[mining] click:hard_timeout", { path })
+      resolve(
+        respond(
+          NextResponse.json(
+            { error: "Mining request timed out. Please retry.", retryAfterSeconds: 3 },
+            {
+              status: 503,
+              headers: {
+                "Retry-After": "3",
+                "Cache-Control": NO_STORE,
+              },
+            },
+          ),
+          { outcome: "hard_timeout" },
+        ),
+      )
+    }, HARD_RESPONSE_TIMEOUT_MS)
+  })
+
   try {
-    console.info("[mining] click:enqueue_start", { idempotencyKey })
-    const enqueueResult = await withTimeout(
-      enqueueMiningRequest({
-        userId: userPayload.userId,
-        idempotencyKey,
-        sourceIp: ip,
-        userAgent: request.headers.get("user-agent"),
-      }),
-      REDIS_TIMEOUT_MS,
-      "enqueueMiningRequest",
-    )
-
-    console.info("[mining] click:enqueue_end", {
-      idempotencyKey,
-      enqueued: enqueueResult.enqueued,
-      status: enqueueResult.status.status,
-    })
-
-    return respond(buildStatusResponse(enqueueResult.status, request), { outcome: "enqueued" })
+    return await Promise.race([mainFlow(), hardTimeoutPromise])
   } catch (error) {
-    console.error("Mining click enqueue error/timeout", error)
+    console.error("[mining] click:unhandled_error", error)
     return respond(
       NextResponse.json(
-        { error: "Unable to queue mining request. Please try again.", retryAfterSeconds: 3 },
-        {
-          status: 503,
-          headers: {
-            "Idempotency-Key": idempotencyKey,
-            "Retry-After": "3",
-            "Cache-Control": NO_STORE,
-          },
-        },
+        { error: "Unexpected mining error", retryAfterSeconds: 3 },
+        { status: 503, headers: { "Retry-After": "3", "Cache-Control": NO_STORE } },
       ),
-      { outcome: "enqueue_failure" },
+      { outcome: "unhandled_error" },
     )
   }
 }
