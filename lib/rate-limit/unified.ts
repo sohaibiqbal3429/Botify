@@ -359,8 +359,9 @@ export async function enforceUnifiedRateLimit(
   context: RateLimitContext,
   metadata: { path?: string } = {},
 ): Promise<RateLimitDecision> {
-  // ✅ IMPORTANT: bypass backend rate limiting for mining polling endpoints
-  if (metadata.path?.startsWith("/api/mining")) {
+  // ✅ IMPORTANT: bypass backend rate limiting for mining polling endpoints only
+  const miningPollPaths = ["/api/mining/click/status", "/api/mining/status", "/api/mining/start-session"]
+  if (metadata.path && miningPollPaths.some((p) => metadata.path.startsWith(p))) {
     return { allowed: true }
   }
 

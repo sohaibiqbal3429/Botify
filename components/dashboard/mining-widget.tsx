@@ -22,6 +22,9 @@ type MiningApiResponse = {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+const POLL_INTERVAL_MS = 1000
+const POLL_TIMEOUT_MS = 20_000
+
 export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
   const [loading, startTransition] = useTransition()
   const [polling, setPolling] = useState(false)
@@ -44,19 +47,11 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
 
     try {
       const started = Date.now()
-      let interval = 1000
-      let attempts = 0
 
-      while (Date.now() - started < 30_000) {
-        // pause polling if tab not visible to avoid piling requests
+      while (Date.now() - started < POLL_TIMEOUT_MS) {
         if (document.visibilityState === "hidden") {
-          await sleep(1000)
+          await sleep(POLL_INTERVAL_MS)
           continue
-        }
-
-        attempts += 1
-        if (attempts > 20) {
-          throw new Error("Mining is taking too long. Please refresh.")
         }
 
         pollAbortRef.current?.abort()
@@ -70,6 +65,11 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
         })
 
         const data: any = await res.json().catch(() => ({}))
+        const retryAfterHeader = res.headers.get("Retry-After")
+        const retryAfterSeconds = retryAfterHeader ? Number.parseFloat(retryAfterHeader) : null
+        const retryDelay = Number.isFinite(retryAfterSeconds)
+          ? Math.max(POLL_INTERVAL_MS, retryAfterSeconds * 1000)
+          : POLL_INTERVAL_MS
 
         if (!res.ok) {
           throw new Error(data?.error || data?.status?.error?.message || "Unable to fetch mining status")
@@ -95,8 +95,11 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
           return
         }
 
-        await sleep(interval)
-        interval = Math.min(2000, Math.floor(interval * 1.25))
+        if (state !== "queued" && state !== "processing") {
+          throw new Error("Unexpected mining status. Please try again.")
+        }
+
+        await sleep(Math.min(retryDelay, POLL_TIMEOUT_MS))
       }
 
       throw new Error("Mining is taking too long. Please refresh.")
@@ -108,6 +111,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
       })
     } finally {
       pollingRef.current = false
+      pollAbortRef.current?.abort()
       setPolling(false)
     }
   }
@@ -141,8 +145,6 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
 
     startTransition(async () => {
       try {
-        setPolling(true)
-
         // ✅ Always send idempotency key so server can dedupe
         const idempotencyKey =
           (globalThis.crypto as any)?.randomUUID?.() ||
