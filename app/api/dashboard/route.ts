@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
 
     const now = new Date()
     const nextEligibleAt = miningSession.nextEligibleAt ?? now
-    const minDeposit = settings?.gating?.minDeposit ?? 50
+    const minDeposit = Math.max(50, settings?.gating?.minDeposit ?? 50)
     const hasMinimumDeposit = (user.depositTotal ?? 0) >= minDeposit
     const canMine = hasMinimumDeposit && now >= nextEligibleAt
 

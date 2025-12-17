@@ -145,7 +145,7 @@ export async function submitDeposit(input: DepositSubmissionInput) {
   }
 
   const settings = await Settings.findOne()
-  const minDeposit = settings?.gating?.minDeposit ?? FAKE_DEPOSIT_AMOUNT
+  const minDeposit = Math.max(FAKE_DEPOSIT_AMOUNT, settings?.gating?.minDeposit ?? FAKE_DEPOSIT_AMOUNT)
 
   if (!isFakeDeposit && parsed.data.amount < minDeposit) {
     throw new DepositSubmissionError(`Amount must be at least $${formatAmount(minDeposit)}.`)
