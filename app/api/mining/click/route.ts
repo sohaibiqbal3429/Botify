@@ -6,6 +6,9 @@ import {
   enqueueMiningRequest,
   getMiningRequestStatus,
   isMiningQueueEnabled,
+  markMiningStatusCompleted,
+  markMiningStatusFailed,
+  markMiningStatusProcessing,
   MINING_STATUS_TTL_MS,
   type MiningRequestStatus,
 } from "@/lib/services/mining-queue"
@@ -76,13 +79,10 @@ export async function POST(request: NextRequest) {
     return respond(rateDecision.response, { outcome: "rate_limited" })
   }
 
-  const idempotencyKey = request.headers.get("idempotency-key")?.trim()
-  if (!idempotencyKey) {
-    return respond(
-      NextResponse.json({ error: "Idempotency-Key header is required" }, { status: 400 }),
-      { outcome: "missing_idempotency" },
-    )
-  }
+  let idempotencyKey =
+    request.headers.get("idempotency-key")?.trim() ||
+    request.headers.get("Idempotency-Key")?.trim() ||
+    makeIdempotencyKey()
 
   const userPayload = getUserFromRequest(request)
   if (!userPayload) {
@@ -99,6 +99,9 @@ export async function POST(request: NextRequest) {
   const processDirect = async (successOutcome: string) => {
     try {
       const requestedAt = new Date()
+      // Mark processing (best effort)
+      await markMiningStatusProcessing(idempotencyKey).catch(() => null)
+
       const result = await performMiningClick(userPayload.userId, { idempotencyKey })
       const completedAt = new Date()
 
@@ -108,38 +111,52 @@ export async function POST(request: NextRequest) {
         roiCapReached: result.roiCapReached ? 1 : 0,
       })
 
-      const status: MiningRequestStatus = {
-        status: "completed",
-        idempotencyKey,
-        userId: userPayload.userId,
-        requestedAt: requestedAt.toISOString(),
-        updatedAt: completedAt.toISOString(),
-        sourceIp: ip,
-        userAgent: request.headers.get("user-agent"),
-        queueDepth: 0,
-        result: {
+      const status =
+        (await markMiningStatusCompleted(idempotencyKey, userPayload.userId, {
           ...result,
-          // This is what the UI should show when the user clicks "Start Mining"
           message: "Mining rewarded",
           completedAt: completedAt.toISOString(),
-        },
-      }
+        }).catch(() => null)) ??
+        ({
+          status: "completed",
+          idempotencyKey,
+          userId: userPayload.userId,
+          requestedAt: requestedAt.toISOString(),
+          updatedAt: completedAt.toISOString(),
+          sourceIp: ip,
+          userAgent: request.headers.get("user-agent"),
+          queueDepth: 0,
+          result: {
+            ...result,
+            message: "Mining rewarded",
+            completedAt: completedAt.toISOString(),
+          },
+        } satisfies MiningRequestStatus)
 
       return respond(buildStatusResponse(status, request), { outcome: successOutcome })
     } catch (error) {
       if (error instanceof MiningActionError) {
+        await markMiningStatusFailed(idempotencyKey, userPayload.userId, {
+          message: error.message,
+          retryable: error.status >= 500,
+          details: (error as any).details,
+        }).catch(() => null)
+
         return respond(
-          NextResponse.json({ error: error.message }, { status: error.status }),
+          NextResponse.json({ error: error.message, ...(error as any)?.details }, { status: error.status }),
           { outcome: "mining_error" },
         )
       }
 
       console.error("Mining click processing error", error)
+      await markMiningStatusFailed(idempotencyKey, userPayload.userId, {
+        message: "Unable to process mining request",
+        retryable: true,
+        retryAfterMs: 3000,
+      }).catch(() => null)
+
       return respond(
-        NextResponse.json(
-          { error: "Unable to process mining request" },
-          { status: 500 },
-        ),
+        NextResponse.json({ error: "Unable to process mining request" }, { status: 500 }),
         { outcome: "processing_failure" },
       )
     }
