@@ -1,24 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { getUserFromRequest } from "@/lib/auth"
-import {
-  getMiningRequestStatus,
-  markMiningStatusCompleted,
-  markMiningStatusFailed,
-  markMiningStatusProcessing,
-  MINING_STATUS_TTL_MS,
-  type MiningRequestStatus,
-} from "@/lib/services/mining-queue"
+import { getMiningRequestStatus, MINING_STATUS_TTL_MS, type MiningRequestStatus } from "@/lib/services/mining-queue"
 import { MiningActionError, performMiningClick } from "@/lib/services/mining"
 import { recordMiningMetrics } from "@/lib/services/mining-metrics"
-import { getClientIp, getRateLimitContext } from "@/lib/rate-limit/unified"
+import { getClientIp } from "@/lib/rate-limit/unified"
 import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 const NO_STORE = "no-store"
-const PROCESS_TIMEOUT_MS = 3500
+const PROCESS_TIMEOUT_MS = 4000
 
 function makeIdempotencyKey() {
   const g = globalThis as any
@@ -41,7 +34,7 @@ function buildStatusResponse(
   request: NextRequest,
   extraHeaders: Record<string, string> = {},
 ): NextResponse<{ status: MiningRequestStatus; statusUrl: string }> {
-  const statusUrl = new URL("/api/mining/click", request.url)
+  const statusUrl = new URL("/api/mining/click/status", request.url)
   statusUrl.searchParams.set("key", status.idempotencyKey)
 
   let statusCode = 202
@@ -70,7 +63,6 @@ function buildStatusResponse(
 export async function POST(request: NextRequest) {
   const startedAt = Date.now()
   const path = new URL(request.url).pathname
-  const rateLimitContext = getRateLimitContext(request)
   trackRequestRate("backend", { path })
 
   const respond = (response: NextResponse, tags: Record<string, string | number> = {}) => {
@@ -89,16 +81,13 @@ export async function POST(request: NextRequest) {
 
   const ip = getClientIp(request)
 
-  // Idempotent lookup first
+  // Fast idempotent check
   const prior = await getMiningRequestStatus(idempotencyKey)
   if (prior && prior.userId === user.userId) {
-    return respond(buildStatusResponse(prior, request), { outcome: "duplicate" })
+    return respond(buildStatusResponse(prior, request, { "X-Client-Ip": ip ?? "" }), { outcome: "duplicate" })
   }
 
-  // Process inline with bounded timeout; record minimal status best-effort
   try {
-    await markMiningStatusProcessing(idempotencyKey).catch(() => null)
-
     const result = await withTimeout(
       performMiningClick(user.userId, { idempotencyKey }),
       PROCESS_TIMEOUT_MS,
@@ -111,25 +100,25 @@ export async function POST(request: NextRequest) {
       roiCapReached: result.roiCapReached ? 1 : 0,
     }).catch(() => null)
 
-    const status = await markMiningStatusCompleted(idempotencyKey, user.userId, {
-      ...result,
-      message: "Mining rewarded",
-      completedAt: new Date().toISOString(),
-    }).catch(() => {
-      const now = new Date().toISOString()
-      return {
-        status: "completed" as const,
-        idempotencyKey,
-        userId: user.userId,
-        requestedAt: now,
-        updatedAt: now,
-        result,
-      }
-    })
+    const nowIso = new Date().toISOString()
+    const status: MiningRequestStatus = {
+      status: "completed",
+      idempotencyKey,
+      userId: user.userId,
+      requestedAt: nowIso,
+      updatedAt: nowIso,
+      sourceIp: ip,
+      userAgent: request.headers.get("user-agent"),
+      queueDepth: 0,
+      result: {
+        ...result,
+        message: "Mining rewarded",
+        completedAt: nowIso,
+      },
+    }
 
     return respond(
       buildStatusResponse(status, request, {
-        "X-RateLimit-Layer": "bypass",
         "X-Mining-Mode": "inline",
         "X-Client-Ip": ip ?? "",
       }),
@@ -137,28 +126,16 @@ export async function POST(request: NextRequest) {
     )
   } catch (error: any) {
     if (error instanceof MiningActionError) {
-      const status = await markMiningStatusFailed(idempotencyKey, user.userId, {
-        message: error.message,
-        retryable: error.status >= 500,
-        details: (error as any).details,
-      }).catch(() => null)
-
       return respond(
         NextResponse.json(
           { error: error.message, ...(error as any)?.details },
           { status: error.status, headers: { "Idempotency-Key": idempotencyKey, "Cache-Control": NO_STORE } },
         ),
-        { outcome: "mining_error", status: status?.status ?? "failed" },
+        { outcome: "mining_error" },
       )
     }
 
     console.error("[mining] click:inline_unexpected", error)
-    const status = await markMiningStatusFailed(idempotencyKey, user.userId, {
-      message: "Mining temporarily unavailable",
-      retryable: true,
-      retryAfterMs: 3000,
-    }).catch(() => null)
-
     return respond(
       NextResponse.json(
         { error: "Mining temporarily unavailable. Please retry.", retryAfterSeconds: 3 },
@@ -171,12 +148,11 @@ export async function POST(request: NextRequest) {
           },
         },
       ),
-      { outcome: "inline_failure", status: status?.status ?? "failed" },
+      { outcome: "inline_failure" },
     )
   }
 }
 
-// Status GET (for compatibility; reuses same route)
 export async function GET(request: NextRequest) {
   const startedAt = Date.now()
   const path = new URL(request.url).pathname
