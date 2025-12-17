@@ -17,26 +17,4 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
           script: |
-#!/usr/bin/env bash
-set -euo pipefail
-
-APP_DIR="/var/www/botify"
-BRANCH="main"
-
-cd "$APP_DIR"
-
-echo "==> Pull latest"
-git fetch --all
-git reset --hard "origin/$BRANCH"
-
-echo "==> Install deps"
-npm ci
-
-echo "==> Build"
-npm run build
-
-echo "==> Restart PM2"
-pm2 start ecosystem.config.cjs --update-env || pm2 restart botify --update-env
-pm2 save
-
-echo "✅ Deploy done"
+            /usr/local/bin/deploy-botify.sh
