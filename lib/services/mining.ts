@@ -14,7 +14,6 @@ import mongoose from "mongoose"
 const DEFAULT_MINING_SETTINGS = {
   dailyProfitPercent: 1.5,
   roiCap: 3,
-  minDeposit: 50,
 }
 
 export class MiningActionError extends Error {
@@ -88,7 +87,7 @@ export async function getMiningStatus(userId: string): Promise<MiningStatusResul
     dailyProfitPercent,
     roiCap: plainSettings?.mining?.roiCap ?? DEFAULT_MINING_SETTINGS.roiCap,
   }
-  const requiredDeposit = Math.max(DEFAULT_MINING_SETTINGS.minDeposit, plainSettings?.gating?.minDeposit ?? DEFAULT_MINING_SETTINGS.minDeposit)
+  const requiredDeposit = plainSettings?.gating?.minDeposit ?? 30
   const hasMinimumDeposit = user.depositTotal >= requiredDeposit
 
   const totalMiningClicks = await Transaction.countDocuments({
@@ -170,7 +169,7 @@ export async function performMiningClick(
     roiCap: plainSettings?.mining?.roiCap ?? DEFAULT_MINING_SETTINGS.roiCap,
   }
 
-  const requiredDeposit = Math.max(DEFAULT_MINING_SETTINGS.minDeposit, plainSettings?.gating?.minDeposit ?? DEFAULT_MINING_SETTINGS.minDeposit)
+  const requiredDeposit = plainSettings?.gating?.minDeposit ?? 30
   if (user.depositTotal < requiredDeposit) {
     throw new MiningActionError(`Mining requires a minimum deposit of $${requiredDeposit} USDT`, 403)
   }
