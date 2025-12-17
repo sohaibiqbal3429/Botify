@@ -164,7 +164,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
 
   return (
     <div className="rounded-xl border p-6 space-y-4">
-      <div className="text-lg font-semibold">Mining</div>
+      <div className="text-lg font-semibold">Miningg</div>
       <Button onClick={handleMining} disabled={loading || polling} className="w-full">
         {loading || polling ? "Mining..." : "Start Miningg"}
       </Button>
