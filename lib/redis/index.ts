@@ -9,7 +9,14 @@ function createRedisClient(): Redis {
 
   const options: RedisOptions = {
     enableAutoPipelining: true,
-    maxRetriesPerRequest: null,
+    maxRetriesPerRequest: 3,
+    enableReadyCheck: true,
+    lazyConnect: true,
+    connectTimeout: Number(process.env.REDIS_CONNECT_TIMEOUT ?? 1500),
+    retryStrategy(times) {
+      const delay = Math.min(times * 100, 2000)
+      return delay
+    },
   }
 
   return new Redis(process.env.REDIS_URL, options)
@@ -29,6 +36,16 @@ export function getRedisClient(): Redis {
   }
 
   return redisClient
+}
+
+export async function ensureRedisConnected(): Promise<void> {
+  if (!redisClient) return
+  if ((redisClient as any).status === "ready") return
+  try {
+    await redisClient.connect()
+  } catch (error) {
+    console.warn("[redis] failed to connect", error)
+  }
 }
 
 export type RedisClient = ReturnType<typeof getRedisClient>

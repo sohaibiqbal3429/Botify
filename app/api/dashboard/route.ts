@@ -1,6 +1,7 @@
 import mongoose from "mongoose"
 
 import { type NextRequest, NextResponse } from "next/server"
+import { getCachedJSON } from "@/lib/cache/server-cache"
 import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
 import Balance from "@/models/Balance"
@@ -10,6 +11,10 @@ import Transaction from "@/models/Transaction"
 import { getUserFromRequest } from "@/lib/auth"
 import { hasQualifiedDeposit } from "@/lib/utils/leveling"
 import { getClaimableTeamRewardTotal } from "@/lib/services/team-earnings"
+import { withTimeout } from "@/lib/utils/timeout"
+
+const DASHBOARD_TTL_SECONDS = Number(process.env.DASHBOARD_CACHE_SECONDS ?? 5)
+const DB_TIMEOUT_MS = Number(process.env.DB_TIMEOUT_MS ?? 1500)
 
 function ensureObjectId(value: mongoose.Types.ObjectId | string) {
   if (value instanceof mongoose.Types.ObjectId) {
@@ -34,10 +39,7 @@ function resolvePreviousUtcDayWindow(reference: Date) {
   return { start, end, dayKey: start.toISOString().slice(0, 10) }
 }
 
-export async function getDailyTeamRewardTotal(
-  userId: mongoose.Types.ObjectId | string,
-  now: Date,
-): Promise<number> {
+async function getDailyTeamRewardTotal(userId: mongoose.Types.ObjectId | string, now: Date): Promise<number> {
   const { start, end, dayKey } = resolvePreviousUtcDayWindow(now)
   const userIdString = typeof userId === "string" ? userId : userId.toString()
   const idCandidates: (string | mongoose.Types.ObjectId)[] = [userIdString]
@@ -70,98 +72,127 @@ export async function getDailyTeamRewardTotal(
         total: { $sum: "$amount" },
       },
     },
-  ])
+  ]).option({ maxTimeMS: DB_TIMEOUT_MS })
 
   return Number(results?.[0]?.total ?? 0)
 }
 
 export async function GET(request: NextRequest) {
+  const requestStarted = Date.now()
   try {
     const userPayload = getUserFromRequest(request)
     if (!userPayload) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    await dbConnect()
+    await withTimeout(dbConnect(), DB_TIMEOUT_MS, "db connect")
 
-    const user = await User.findById(userPayload.userId)
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const cacheKey = `dashboard:v2:${userPayload.userId}`
+    const { value, hitLayer } = await getCachedJSON(cacheKey, DASHBOARD_TTL_SECONDS, async () => {
+      const user = await User.findById(userPayload.userId)
+        .select({
+          depositTotal: 1,
+          withdrawTotal: 1,
+          roiEarnedTotal: 1,
+          level: 1,
+          referralCode: 1,
+          isBlocked: 1,
+          miningDailyRateOverridePct: 1,
+        })
+        .lean()
 
-    if (user.isBlocked) {
-      return NextResponse.json({ error: "Account blocked", blocked: true }, { status: 403 })
-    }
+      if (!user) {
+        throw new Error("User not found")
+      }
 
-    const userObjectId = ensureObjectId(user._id as any)
+      const userObjectId = ensureObjectId(user._id as any)
 
-    let balance = await Balance.findOne({ userId: userObjectId })
-    if (!balance) {
-      balance = await Balance.create({
-        userId: userObjectId,
-        current: 0,
-        totalBalance: 0,
-        totalEarning: 0,
-        lockedCapital: 0,
-        staked: 0,
-        pendingWithdraw: 0,
-        teamRewardsAvailable: 0,
-        teamRewardsClaimed: 0,
-      })
-    }
+      const [balance, miningSession, settings] = await Promise.all([
+        Balance.findOneAndUpdate(
+          { userId: userObjectId },
+          {
+            $setOnInsert: {
+              userId: userObjectId,
+              current: 0,
+              totalBalance: 0,
+              totalEarning: 0,
+              lockedCapital: 0,
+              staked: 0,
+              pendingWithdraw: 0,
+              teamRewardsAvailable: 0,
+              teamRewardsClaimed: 0,
+            },
+          },
+          { upsert: true, new: true, lean: true },
+        ),
+        MiningSession.findOneAndUpdate({ userId: userObjectId }, { $setOnInsert: { userId: userObjectId } }, {
+          upsert: true,
+          new: true,
+          lean: true,
+        }),
+        Settings.findOne().select({ gating: 1 }).lean(),
+      ])
 
-    let miningSession = await MiningSession.findOne({ userId: userObjectId })
-    if (!miningSession) {
-      miningSession = await MiningSession.create({ userId: userObjectId })
-    }
+      const [directReferrals, claimableTeamRewards] = await Promise.all([
+        User.find({ referredBy: userObjectId }).select({ depositTotal: 1, qualified: 1 }).lean(),
+        getClaimableTeamRewardTotal(userObjectId.toString()),
+      ])
 
-    const settings = await Settings.findOne()
+      const activeMembers = directReferrals.filter((referral) => hasQualifiedDeposit(referral)).length
 
-    const [directReferrals, claimableTeamRewards] = await Promise.all([
-      User.find({ referredBy: userObjectId }).select("qualified depositTotal").lean(),
-      getClaimableTeamRewardTotal(userObjectId.toString()),
-    ])
-    const activeMembers = directReferrals.filter((referral) => hasQualifiedDeposit(referral)).length
+      const now = new Date()
+      const nextEligibleAt = miningSession?.nextEligibleAt ?? now
+      const minDeposit = Math.max(50, settings?.gating?.minDeposit ?? 50)
+      const hasMinimumDeposit = (user.depositTotal ?? 0) >= minDeposit
+      const canMine = hasMinimumDeposit && now >= nextEligibleAt
 
-    const now = new Date()
-    const nextEligibleAt = miningSession.nextEligibleAt ?? now
-    const minDeposit = Math.max(50, settings?.gating?.minDeposit ?? 50)
-    const hasMinimumDeposit = (user.depositTotal ?? 0) >= minDeposit
-    const canMine = hasMinimumDeposit && now >= nextEligibleAt
+      const teamRewardsAvailable = claimableTeamRewards
+      const teamRewardToday = await getDailyTeamRewardTotal(userObjectId, now)
+      const totalEarning = balance?.totalEarning ?? 0
+      const totalBalance = balance?.totalBalance ?? 0
+      const currentBalance = balance?.current ?? 0
 
-    const teamRewardsAvailable = claimableTeamRewards
-    const teamRewardToday = await getDailyTeamRewardTotal(userObjectId, now)
-    const totalEarning = balance.totalEarning ?? 0
-    const totalBalance = balance.totalBalance ?? 0
-    const currentBalance = balance.current ?? 0
+      return {
+        kpis: {
+          totalEarning,
+          totalBalance,
+          currentBalance,
+          activeMembers,
+          totalWithdraw: user.withdrawTotal ?? 0,
+          pendingWithdraw: balance?.pendingWithdraw ?? 0,
+          teamReward: teamRewardsAvailable,
+          teamRewardToday,
+        },
+        mining: {
+          canMine,
+          requiresDeposit: !hasMinimumDeposit,
+          minDeposit,
+          nextEligibleAt: nextEligibleAt.toISOString(),
+          earnedInCycle: miningSession?.earnedInCycle ?? 0,
+        },
+        user: {
+          level: user.level ?? 0,
+          referralCode: user.referralCode ?? "",
+          roiEarnedTotal: user.roiEarnedTotal ?? 0,
+          depositTotal: user.depositTotal ?? 0,
+        },
+      }
+    })
 
-    return NextResponse.json({
-      kpis: {
-        totalEarning,
-        totalBalance,
-        currentBalance,
-        activeMembers,
-        totalWithdraw: user.withdrawTotal ?? 0,
-        pendingWithdraw: balance.pendingWithdraw ?? 0,
-        teamReward: teamRewardsAvailable,
-        teamRewardToday,
-      },
-      mining: {
-        canMine,
-        requiresDeposit: !hasMinimumDeposit,
-        minDeposit,
-        nextEligibleAt: nextEligibleAt.toISOString(),
-        earnedInCycle: miningSession.earnedInCycle ?? 0,
-      },
-      user: {
-        level: user.level ?? 0,
-        referralCode: user.referralCode ?? "",
-        roiEarnedTotal: user.roiEarnedTotal ?? 0,
-        depositTotal: user.depositTotal ?? 0,
+    return NextResponse.json(value, {
+      headers: {
+        "Cache-Control": `private, max-age=${DASHBOARD_TTL_SECONDS}, stale-while-revalidate=${DASHBOARD_TTL_SECONDS * 6}`,
+        "X-Cache": hitLayer,
+        "X-Response-Time": `${Date.now() - requestStarted}ms`,
       },
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error("Dashboard error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const status = /timed out/i.test(error?.message ?? "") ? 503 : 500
+    const headers: Record<string, string> = {
+      "Retry-After": "5",
+      "Cache-Control": "no-store",
+    }
+    return NextResponse.json({ error: "Service unavailable" }, { status, headers })
   }
 }

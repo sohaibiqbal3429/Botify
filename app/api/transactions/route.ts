@@ -4,6 +4,10 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getUserFromRequest } from "@/lib/auth"
 import dbConnect from "@/lib/mongodb"
 import Transaction from "@/models/Transaction"
+import { withTimeout } from "@/lib/utils/timeout"
+
+const DB_TIMEOUT_MS = Number(process.env.DB_TIMEOUT_MS ?? 1500)
+const RESPONSE_TTL_SECONDS = Number(process.env.TRANSACTION_CACHE_SECONDS ?? 15)
 
 const PROJECTION = {
   bigBlob: 0,
@@ -138,7 +142,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    await dbConnect()
+    await withTimeout(dbConnect(), DB_TIMEOUT_MS, "db connect")
 
     const { searchParams } = new URL(request.url)
     const type = searchParams.get("type")
@@ -181,6 +185,7 @@ export async function GET(request: NextRequest) {
       .sort({ _id: -1 })
       .limit(limit + 1)
       .lean()
+      .maxTimeMS(DB_TIMEOUT_MS)
 
     const summaryMatch: Record<string, unknown> = { userId: userObjectId }
     if (type && type !== "all") {
@@ -210,73 +215,38 @@ export async function GET(request: NextRequest) {
           count: { $sum: 1 },
         },
       },
-      { $project: { _id: 0, type: "$_id.type", status: "$_id.status", total: 1, count: 1 } },
-    ]).exec()
-
-    const balanceMatch: Record<string, unknown> = { userId: userObjectId, status: "approved" }
-    if (type && type !== "all") {
-      balanceMatch.type = type
-    }
-    if (dateRange) {
-      balanceMatch.createdAt = dateRange
-    }
-
-    const balancePromise = Transaction.aggregate([
-      { $match: balanceMatch },
       {
-        $group: {
-          _id: null,
-          totalDeposits: {
-            $sum: { $cond: [{ $eq: ["$type", "deposit"] }, "$amount", 0] },
-          },
-          totalWithdrawals: {
-            $sum: { $cond: [{ $eq: ["$type", "withdraw"] }, "$amount", 0] },
-          },
-          totalEarnings: {
-            $sum: { $cond: [{ $eq: ["$type", "earn"] }, "$amount", 0] },
-          },
-          totalCommissions: {
-            $sum: { $cond: [{ $eq: ["$type", "commission"] }, "$amount", 0] },
-          },
+        $project: {
+          type: "$_id.type",
+          status: "$_id.status",
+          total: 1,
+          count: 1,
+          _id: 0,
         },
       },
-      { $project: { _id: 0 } },
-    ]).exec()
+    ]).option({ maxTimeMS: DB_TIMEOUT_MS })
 
-    const [transactions, summary, balanceChanges] = await Promise.all([
-      transactionsPromise,
-      summaryPromise,
-      balancePromise,
-    ])
+    const [transactionsRaw, summaryRaw] = await Promise.all([transactionsPromise, summaryPromise])
 
-    const hasMore = transactions.length > limit
-    const slicedTransactions = hasMore ? transactions.slice(0, -1) : transactions
-    const nextCursor = hasMore ? String(slicedTransactions[slicedTransactions.length - 1]._id) : null
+    const hasMore = transactionsRaw.length > limit
+    const transactions = sanitizeTransactions(transactionsRaw.slice(0, limit))
+    const summary = buildSummaryMap(summaryRaw)
 
-    const sanitizedTransactions = sanitizeTransactions(slicedTransactions)
-    const summaryMap = buildSummaryMap(summary)
-
-    const normalizedBalance = {
-      totalDeposits: Number(balanceChanges[0]?.totalDeposits ?? 0),
-      totalWithdrawals: Number(balanceChanges[0]?.totalWithdrawals ?? 0),
-      totalEarnings: Number(balanceChanges[0]?.totalEarnings ?? 0),
-      totalCommissions: Number(balanceChanges[0]?.totalCommissions ?? 0),
-    }
-
-    return NextResponse.json({
-      success: true,
-      transactions: sanitizedTransactions,
-      data: sanitizedTransactions,
-      nextCursor,
-      hasMore,
-      summary: Object.fromEntries(
-        Object.entries(summaryMap).map(([typeKey, value]) => [typeKey, { total: value.total, count: value.count }]),
-      ),
-      summaryBreakdown: summaryMap,
-      balanceChanges: normalizedBalance,
-    })
-  } catch (error) {
+    return NextResponse.json(
+      {
+        transactions,
+        summary,
+        cursor: hasMore ? String(transactionsRaw[limit - 1]._id) : null,
+      },
+      {
+        headers: {
+          "Cache-Control": `private, max-age=${RESPONSE_TTL_SECONDS}, stale-while-revalidate=${RESPONSE_TTL_SECONDS * 4}`,
+        },
+      },
+    )
+  } catch (error: any) {
     console.error("Transactions error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const status = /timed out/i.test(error?.message ?? "") ? 503 : 500
+    return NextResponse.json({ error: "Service unavailable" }, { status, headers: { "Retry-After": "5" } })
   }
 }

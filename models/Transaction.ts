@@ -62,7 +62,6 @@ const TransactionSchema = new Schema<ITransaction>(
 
 TransactionSchema.index({ userId: 1, createdAt: -1 })
 TransactionSchema.index({ status: 1, createdAt: -1 })
-TransactionSchema.index({ userEmail: 1 })
 TransactionSchema.index({ createdAt: -1, _id: 1 })
 TransactionSchema.index({ type: 1, status: 1 })
 TransactionSchema.index({ userId: 1, claimable: 1, status: 1 })

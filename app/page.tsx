@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button"
 import { ArrowRight, Shield, Zap } from "lucide-react"
 import Image from "next/image"
 
+export const revalidate = 1800
+export const dynamic = "force-static"
+
 export default function HomePage() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-signal text-slate-50">
