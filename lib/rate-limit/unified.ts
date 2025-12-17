@@ -23,21 +23,31 @@ const DEFAULT_WHITELIST = [
 
 const WHITELIST: string[] = (() => {
   const fromEnv = process.env.RATE_LIMIT_IP_WHITELIST
-  if (!fromEnv) return DEFAULT_WHITELIST
+  if (!fromEnv) {
+    return DEFAULT_WHITELIST
+  }
 
   const items = fromEnv
     .split(",")
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0)
-
   return [...new Set([...DEFAULT_WHITELIST, ...items])]
 })()
 
 function isValidIPv4(ip: string): boolean {
-  if (!ip) return false
-  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) return false
+  if (!ip) {
+    return false
+  }
+
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+    return false
+  }
+
   return ip.split(".").every((segment) => {
-    if (segment.length === 0) return false
+    if (segment.length === 0) {
+      return false
+    }
+
     const value = Number(segment)
     return Number.isInteger(value) && value >= 0 && value <= 255
   })
@@ -48,12 +58,19 @@ function isValidHextet(segment: string): boolean {
 }
 
 function isValidIPv6(ip: string): boolean {
-  if (!ip) return false
+  if (!ip) {
+    return false
+  }
+
   const value = ip.toLowerCase()
-  if (value === "::") return true
+  if (value === "::") {
+    return true
+  }
 
   const doubleColonIndex = value.indexOf("::")
-  if (doubleColonIndex !== -1 && value.indexOf("::", doubleColonIndex + 1) !== -1) return false
+  if (doubleColonIndex !== -1 && value.indexOf("::", doubleColonIndex + 1) !== -1) {
+    return false
+  }
 
   const [headRaw, tailRaw] = value.split("::") as [string, string | undefined]
   const headParts = headRaw ? headRaw.split(":") : []
@@ -65,10 +82,15 @@ function isValidIPv6(ip: string): boolean {
   let ipv4Segments = 0
 
   const validateSegment = (segment: string, isLast: boolean): boolean => {
-    if (segment.length === 0) return false
+    if (segment.length === 0) {
+      return false
+    }
 
     if (segment.includes(".")) {
-      if (!isLast || !isValidIPv4(segment)) return false
+      if (!isLast || !isValidIPv4(segment)) {
+        return false
+      }
+
       ipv4Segments = 2
       return true
     }
@@ -76,20 +98,42 @@ function isValidIPv6(ip: string): boolean {
     return isValidHextet(segment)
   }
 
-  if (!cleanHead.every((segment) => validateSegment(segment, false))) return false
-  if (!cleanTail.every((segment, index) => validateSegment(segment, index === cleanTail.length - 1))) return false
+  if (!cleanHead.every((segment) => validateSegment(segment, false))) {
+    return false
+  }
+
+  if (
+    !cleanTail.every((segment, index) => validateSegment(segment, index === cleanTail.length - 1))
+  ) {
+    return false
+  }
 
   const segmentsCount = cleanHead.length + cleanTail.length + ipv4Segments
-  if (doubleColonIndex === -1) return segmentsCount === 8
+  if (doubleColonIndex === -1) {
+    return segmentsCount === 8
+  }
+
   return segmentsCount < 8
 }
 
 function detectIpVersion(ip: string): 0 | 4 | 6 {
-  if (!ip) return 0
+  if (!ip) {
+    return 0
+  }
+
   const trimmed = ip.trim()
-  if (trimmed.length === 0) return 0
-  if (isValidIPv4(trimmed)) return 4
-  if (isValidIPv6(trimmed)) return 6
+  if (trimmed.length === 0) {
+    return 0
+  }
+
+  if (isValidIPv4(trimmed)) {
+    return 4
+  }
+
+  if (isValidIPv6(trimmed)) {
+    return 6
+  }
+
   return 0
 }
 
@@ -121,11 +165,15 @@ function getLocalBucketStore(): LocalBucketStore {
   if (!globalScope.__LOCAL_TOKEN_BUCKETS__) {
     globalScope.__LOCAL_TOKEN_BUCKETS__ = new Map<string, LocalBucketState>()
   }
+
   return globalScope.__LOCAL_TOKEN_BUCKETS__
 }
 
 function normalisePathname(pathname: string): string {
-  if (!pathname) return "/"
+  if (!pathname) {
+    return "/"
+  }
+
   return pathname.startsWith("/") ? pathname.toLowerCase() : `/${pathname.toLowerCase()}`
 }
 
@@ -135,14 +183,20 @@ interface NormalisedIp {
 }
 
 function normaliseIp(ip: string): NormalisedIp | null {
-  if (!ip) return null
+  if (!ip) {
+    return null
+  }
 
   const maybeIPv4 = ip.startsWith("::ffff:") ? ip.slice(7) : ip
   const version = detectIpVersion(maybeIPv4)
-  if (version === 4) return { value: maybeIPv4, version }
+  if (version === 4) {
+    return { value: maybeIPv4, version }
+  }
 
   const v6Version = detectIpVersion(ip)
-  if (v6Version === 6) return { value: ip, version: v6Version }
+  if (v6Version === 6) {
+    return { value: ip, version: v6Version }
+  }
 
   return null
 }
@@ -158,8 +212,14 @@ function expandIpv6(ip: string): number[] {
   const [head = "", tail = ""] = ip.split("::")
   const parseSegment = (segment: string) => Number.parseInt(segment || "0", 16) || 0
 
-  const headParts = head.split(":").filter((part) => part.length > 0).map(parseSegment)
-  const tailParts = tail.split(":").filter((part) => part.length > 0).map(parseSegment)
+  const headParts = head
+    .split(":")
+    .filter((part) => part.length > 0)
+    .map(parseSegment)
+  const tailParts = tail
+    .split(":")
+    .filter((part) => part.length > 0)
+    .map(parseSegment)
 
   const missing = Math.max(0, 8 - (headParts.length + tailParts.length))
   return [...headParts, ...new Array(missing).fill(0), ...tailParts]
@@ -173,7 +233,10 @@ function ipv6ToBigInt(ip: string): bigint {
 }
 
 function maskBits(version: 4 | 6, prefix: number): bigint {
-  if (prefix <= 0) return 0n
+  if (prefix <= 0) {
+    return 0n
+  }
+
   const width = version === 4 ? 32 : 128
   const shift = BigInt(width - Math.min(prefix, width))
   const full = (1n << BigInt(width)) - 1n
@@ -182,13 +245,19 @@ function maskBits(version: 4 | 6, prefix: number): bigint {
 
 function isIpInCidr(ip: NormalisedIp, cidr: string): boolean {
   const [rawBase, rawPrefix] = cidr.split("/")
-  if (!rawBase || !rawPrefix) return false
+  if (!rawBase || !rawPrefix) {
+    return false
+  }
 
   const base = normaliseIp(rawBase)
-  if (!base || base.version !== ip.version) return false
+  if (!base || base.version !== ip.version) {
+    return false
+  }
 
   const prefix = Number.parseInt(rawPrefix, 10)
-  if (!Number.isFinite(prefix) || prefix < 0) return false
+  if (!Number.isFinite(prefix) || prefix < 0) {
+    return false
+  }
 
   if (ip.version === 4) {
     const mask = maskBits(4, prefix)
@@ -204,12 +273,18 @@ function isIpInCidr(ip: NormalisedIp, cidr: string): boolean {
 }
 
 function ipMatchesWhitelist(ip: string, rule: string): boolean {
-  if (!rule) return false
+  if (!rule) {
+    return false
+  }
 
   const normalised = normaliseIp(ip)
-  if (!normalised) return false
+  if (!normalised) {
+    return false
+  }
 
-  if (rule.includes("/")) return isIpInCidr(normalised, rule)
+  if (rule.includes("/")) {
+    return isIpInCidr(normalised, rule)
+  }
 
   if (rule.endsWith("*")) {
     const comparisonValue = normalised.value
@@ -225,15 +300,27 @@ function ipMatchesWhitelist(ip: string, rule: string): boolean {
 }
 
 export function isWhitelistedIp(ip: string | null | undefined): boolean {
-  if (!ip) return false
+  if (!ip) {
+    return false
+  }
+
   return WHITELIST.some((rule) => ipMatchesWhitelist(ip, rule))
 }
 
 export function shouldBypassRateLimit(pathname: string, context: RateLimitContext): boolean {
   const normalised = normalisePathname(pathname)
-  if (STATIC_ROUTE_EXACT.has(normalised)) return true
-  if (STATIC_ROUTE_PREFIXES.some((prefix) => normalised.startsWith(prefix))) return true
-  if (isWhitelistedIp(context.ip)) return true
+  if (STATIC_ROUTE_EXACT.has(normalised)) {
+    return true
+  }
+
+  if (STATIC_ROUTE_PREFIXES.some((prefix) => normalised.startsWith(prefix))) {
+    return true
+  }
+
+  if (isWhitelistedIp(context.ip)) {
+    return true
+  }
+
   return false
 }
 
@@ -245,16 +332,23 @@ function buildThrottleResponse(
 ): NextResponse {
   const safeRetry = Math.max(1, Math.ceil(retryAfterSeconds))
   const backoffSeconds = Math.min(600, Math.pow(2, Math.ceil(Math.log2(Math.max(1, safeRetry)))))
+  const maskedApiKey = metadata.apiKey ? `${metadata.apiKey.slice(0, 4)}…${metadata.apiKey.slice(-4)}` : undefined
 
-  console.warn(`[rate-limit] ${layer} throttle`, {
-    layer,
-    scopes,
-    retryAfterSeconds: safeRetry,
+  console.warn(
+    `[rate-limit] ${layer} throttle`,
+    {
+      layer,
+      scopes,
+      retryAfterSeconds: safeRetry,
+      path: metadata.path,
+      ip: metadata.ip,
+      apiKey: maskedApiKey,
+    },
+  )
+
+  recordThrottleHit(layer, scopes.join(","), {
     path: metadata.path,
-    ip: metadata.ip,
   })
-
-  recordThrottleHit(layer, scopes.join(","), { path: metadata.path })
 
   const response = NextResponse.json(
     {
@@ -263,7 +357,7 @@ function buildThrottleResponse(
       scope: scopes,
       retryAfterSeconds: safeRetry,
       backoffSeconds,
-      message: `Rate limit exceeded at ${layer} layer.`,
+      message: `Rate limit exceeded at ${layer} layer. Retry after ${safeRetry}s using exponential backoff (next attempt in ~${backoffSeconds}s).`,
     },
     { status: 429 },
   )
@@ -320,8 +414,15 @@ async function consumeUnifiedBucket(
 ): Promise<TokenBucketResult> {
   if (isRedisEnabled()) {
     const client = getRedisClient()
-    return consumeTokenBucket({ key, tokensPerInterval, intervalMs, maxTokens, client })
+    return consumeTokenBucket({
+      key,
+      tokensPerInterval,
+      intervalMs,
+      maxTokens,
+      client,
+    })
   }
+
   return consumeLocalTokenBucket(key, tokensPerInterval, intervalMs, maxTokens)
 }
 
@@ -329,15 +430,23 @@ export function getClientIp(request: NextRequest): string {
   const forwarded = request.headers.get("x-forwarded-for")
   if (forwarded) {
     const first = forwarded.split(",")[0]?.trim()
-    if (first) return first
+    if (first) {
+      return first
+    }
   }
-  if (request.ip) return request.ip
+
+  if (request.ip) {
+    return request.ip
+  }
+
   return "unknown"
 }
 
 export function getApiKey(request: NextRequest): string | null {
   const apiKeyHeader = request.headers.get("x-api-key") || request.headers.get("api-key")
-  if (apiKeyHeader) return apiKeyHeader.trim()
+  if (apiKeyHeader) {
+    return apiKeyHeader.trim()
+  }
 
   const authorization = request.headers.get("authorization")
   if (authorization) {
@@ -351,7 +460,10 @@ export function getApiKey(request: NextRequest): string | null {
 }
 
 export function getRateLimitContext(request: NextRequest): RateLimitContext {
-  return { ip: getClientIp(request), apiKey: getApiKey(request) }
+  return {
+    ip: getClientIp(request),
+    apiKey: getApiKey(request),
+  }
 }
 
 export async function enforceUnifiedRateLimit(
@@ -359,11 +471,6 @@ export async function enforceUnifiedRateLimit(
   context: RateLimitContext,
   metadata: { path?: string } = {},
 ): Promise<RateLimitDecision> {
-  // ✅ IMPORTANT: bypass backend rate limiting for mining polling endpoints
-  if (metadata.path?.startsWith("/api/mining")) {
-    return { allowed: true }
-  }
-
   if (isWhitelistedIp(context.ip)) {
     return { allowed: true }
   }
@@ -373,7 +480,9 @@ export async function enforceUnifiedRateLimit(
   if (context.ip && context.ip !== "unknown") {
     const ipKey = `rate:ip:${context.ip}`
     const ipResult = await consumeUnifiedBucket(ipKey, RATE_LIMIT_IP_RPS, RATE_LIMIT_INTERVAL_MS, RATE_LIMIT_BURST)
-    if (!ipResult.allowed) scopes.push({ label: "ip", result: ipResult })
+    if (!ipResult.allowed) {
+      scopes.push({ label: "ip", result: ipResult })
+    }
   }
 
   if (context.apiKey) {
@@ -384,14 +493,17 @@ export async function enforceUnifiedRateLimit(
       RATE_LIMIT_INTERVAL_MS,
       RATE_LIMIT_BURST,
     )
-    if (!apiKeyResult.allowed) scopes.push({ label: "api-key", result: apiKeyResult })
+    if (!apiKeyResult.allowed) {
+      scopes.push({ label: "api-key", result: apiKeyResult })
+    }
   }
 
-  if (scopes.length === 0) return { allowed: true }
+  if (scopes.length === 0) {
+    return { allowed: true }
+  }
 
   const retryAfterMs = Math.max(...scopes.map((scope) => scope.result.retryAfterMs))
   const retryAfterSeconds = retryAfterMs / 1000
-
   const response = buildThrottleResponse(layer, scopes.map((scope) => scope.label), retryAfterSeconds, {
     ip: context.ip,
     apiKey: context.apiKey,
@@ -402,8 +514,19 @@ export async function enforceUnifiedRateLimit(
 }
 
 export const RATE_LIMIT_EXPORT = {
-  ip: { tokensPerInterval: RATE_LIMIT_IP_RPS, intervalMs: RATE_LIMIT_INTERVAL_MS, maxTokens: RATE_LIMIT_BURST },
-  apiKey: { tokensPerInterval: RATE_LIMIT_API_KEY_RPS, intervalMs: RATE_LIMIT_INTERVAL_MS, maxTokens: RATE_LIMIT_BURST },
+  ip: {
+    tokensPerInterval: RATE_LIMIT_IP_RPS,
+    intervalMs: RATE_LIMIT_INTERVAL_MS,
+    maxTokens: RATE_LIMIT_BURST,
+  },
+  apiKey: {
+    tokensPerInterval: RATE_LIMIT_API_KEY_RPS,
+    intervalMs: RATE_LIMIT_INTERVAL_MS,
+    maxTokens: RATE_LIMIT_BURST,
+  },
   whitelist: WHITELIST,
-  staticRoutes: { prefixes: STATIC_ROUTE_PREFIXES, exact: Array.from(STATIC_ROUTE_EXACT) },
+  staticRoutes: {
+    prefixes: STATIC_ROUTE_PREFIXES,
+    exact: Array.from(STATIC_ROUTE_EXACT),
+  },
 }

@@ -1,13 +1,4 @@
-import {
-  Queue,
-  Worker,
-  QueueEvents,
-  type Job,
-  type JobsOptions,
-  type Processor,
-  type QueueOptions,
-  type WorkerOptions,
-} from "bullmq"
+import { Queue, Worker, QueueEvents, type Job, type JobsOptions, type Processor } from "bullmq"
 
 import { isRedisEnabled } from "@/lib/redis"
 
@@ -23,7 +14,7 @@ const queueName = "mining-clicks"
 
 const hasRedis = isRedisEnabled()
 
-const queueOptions: QueueOptions | null = hasRedis
+const queueOptions = hasRedis
   ? {
       connection: { url: process.env.REDIS_URL!, maxRetriesPerRequest: null },
       defaultJobOptions: {
@@ -36,10 +27,10 @@ const queueOptions: QueueOptions | null = hasRedis
         },
       } satisfies JobsOptions,
     }
-  : null
+  : undefined
 
-const miningQueueInstance = queueOptions ? new Queue<MiningClickJobData>(queueName, queueOptions) : null
-const miningQueueEventsInstance = queueOptions ? new QueueEvents(queueName, queueOptions) : null
+const miningQueueInstance = hasRedis ? new Queue<MiningClickJobData>(queueName, queueOptions) : null
+const miningQueueEventsInstance = hasRedis ? new QueueEvents(queueName, queueOptions) : null
 const defaultConcurrency = Number(process.env.MINING_WORKER_CONCURRENCY ?? 4)
 
 export function isMiningQueueEnabled(): boolean {
@@ -65,7 +56,11 @@ export async function getMiningQueueDepth(): Promise<number> {
     return 0
   }
 
-  const { waiting = 0, paused = 0, delayed = 0 } = await miningQueueInstance.getJobCounts("waiting", "paused", "delayed")
+  const [waiting, paused, delayed] = await Promise.all([
+    miningQueueInstance.getWaitingCount(),
+    miningQueueInstance.getPausedCount(),
+    miningQueueInstance.getDelayedCount(),
+  ])
 
   return waiting + paused + delayed
 }
@@ -79,16 +74,10 @@ export function createMiningClickWorker(
     return null
   }
 
-  if (!queueOptions) {
-    return null
-  }
-
-  const workerOptions: WorkerOptions = {
+  return new Worker(queueName, processor, {
     ...queueOptions,
     concurrency: options?.concurrency ?? defaultConcurrency,
-  }
-
-  return new Worker(queueName, processor, workerOptions)
+  })
 }
 
 export function getMiningQueueEvents(): QueueEvents | null {

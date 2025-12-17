@@ -105,7 +105,7 @@ export default function OTPVerification({ email, phone, onVerified, onBack }: OT
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
         <div className="mx-auto mb-4 w-16 h-16 relative">
-          <Image src="/images/mintmine-logo.png" alt="5gBotify" fill className="object-contain" />
+          <Image src="/images/mintmine-logo.png" alt="Mintmine Pro" fill className="object-contain" />
         </div>
         <CardTitle className="text-2xl font-bold">Verify Your Account</CardTitle>
         <CardDescription>

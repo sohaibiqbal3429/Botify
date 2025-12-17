@@ -3,13 +3,13 @@ import { Suspense } from "react"
 import type { Metadata } from "next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TopLoaderProvider } from "@/components/top-loader"
-import { AppShell } from "@/components/layout/app-shell"
+import { AppHeader } from "@/components/layout/app-header"
 import { cn } from "@/lib/utils"
 
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "5G- Mining Platform",
+  title: "CryptoMine - Next-Generation Mining Platform",
   description:
     "Join our innovative mining ecosystem with referral rewards, team building, and sustainable earning opportunities.",
   generator: "v0.app",
@@ -32,12 +32,13 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/logo.png" />
         <meta name="theme-color" content="#000000" />
       </head>
-      <body className={cn("min-h-screen bg-background font-sans antialiased text-foreground")} suppressHydrationWarning>
+      <body className={cn("min-h-screen bg-background font-sans antialiased text-foreground")}>
         <Suspense fallback={null}>
           <TopLoaderProvider>
-            {/* <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange> */}
-              <AppShell>{children}</AppShell>
-         {/* </ThemeProvider> */}
+            <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+              <AppHeader />
+              {children}
+            </ThemeProvider>
           </TopLoaderProvider>
         </Suspense>
       </body>

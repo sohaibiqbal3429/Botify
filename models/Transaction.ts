@@ -21,7 +21,6 @@ export interface ITransaction extends Document {
   claimable?: boolean
   claimedAt?: Date
   createdAt: Date
-  updatedAt: Date
 }
 
 const TransactionSchema = new Schema<ITransaction>(
@@ -62,14 +61,13 @@ const TransactionSchema = new Schema<ITransaction>(
 
 TransactionSchema.index({ userId: 1, createdAt: -1 })
 TransactionSchema.index({ status: 1, createdAt: -1 })
+TransactionSchema.index({ userEmail: 1 })
 TransactionSchema.index({ createdAt: -1, _id: 1 })
 TransactionSchema.index({ type: 1, status: 1 })
 TransactionSchema.index({ userId: 1, claimable: 1, status: 1 })
 TransactionSchema.index({ "meta.uniqueKey": 1 })
 TransactionSchema.index({ userId: 1, "meta.uniqueEventId": 1 }, { unique: true, sparse: true })
 TransactionSchema.index({ "meta.idempotencyKey": 1 }, { unique: true, sparse: true })
-// Speeds up mining-related lookups/counts
-TransactionSchema.index({ userId: 1, type: 1, "meta.source": 1 })
 
 TransactionSchema.virtual("id").get(function (this: ITransaction) {
   return this._id ? this._id.toString() : undefined

@@ -9,59 +9,31 @@ import {
   HelpCircle,
   History,
   Home,
-  LogOut,
   Pickaxe,
   Settings,
   User,
+  Users,
 } from "lucide-react"
 
 export type AppNavItem = {
   name: string
   href: string
   icon: LucideIcon
-  isLogout?: boolean
 }
 
-export const SIDE_NAV_ITEMS: AppNavItem[] = [
-  { name: "Overview", href: "/dashboard", icon: Home },
-  { name: "Mining Hub", href: "/mining", icon: Pickaxe },
-  { name: "Top-Up Center", href: "/deposit", icon: ArrowDownLeft },
-  { name: "Cash Out", href: "/withdraw", icon: ArrowUpRight },
-  { name: "Missions & Quests", href: "/tasks", icon: BarChart3 },
-]
-
-export const LOGOUT_NAV_ITEM: AppNavItem = { name: "Logout", href: "#logout", icon: LogOut, isLogout: true }
-
-export const UTILITY_NAV_ITEMS: AppNavItem[] = [
-  { name: "Asset Catalog", href: "/coins", icon: Coins },
-  { name: "Wallet Hub", href: "/e-wallet", icon: CreditCard },
-]
-
-export const GLOBAL_UTILITY_NAV: AppNavItem[] = [
-  { name: "Activity Timeline", href: "/transactions", icon: History },
-  { name: "Help Desk", href: "/support", icon: HelpCircle },
-]
-
-export const ACCOUNT_CENTER_NAV: AppNavItem = { name: "Account Center", href: "/profile", icon: User }
-
-export const KNOWLEDGE_BASE_NAV: AppNavItem = { name: "Knowledge Base", href: "/terms", icon: FileText }
-
-export const HEADER_NAV_LEFT: AppNavItem[] = SIDE_NAV_ITEMS
-
-export const HEADER_NAV_RIGHT: AppNavItem[] = [
-  ...UTILITY_NAV_ITEMS,
-  ...GLOBAL_UTILITY_NAV,
-  ACCOUNT_CENTER_NAV,
-  KNOWLEDGE_BASE_NAV,
-]
-
-// Primary nav is used for mobile navigation and breadcrumbs; logout is excluded here.
 export const PRIMARY_NAV_ITEMS: AppNavItem[] = [
-  ...SIDE_NAV_ITEMS,
-  ...UTILITY_NAV_ITEMS,
-  ...GLOBAL_UTILITY_NAV,
-  ACCOUNT_CENTER_NAV,
-  KNOWLEDGE_BASE_NAV,
+  { name: "Home", href: "/dashboard", icon: Home },
+  // { name: "Mining", href: "/mining", icon: Pickaxe },
+  { name: "Deposit", href: "/deposit", icon: ArrowDownLeft },
+  { name: "Withdraw", href: "/withdraw", icon: ArrowUpRight },
+  // { name: "Task", href: "/tasks", icon: BarChart3 },
+  // { name: "Team", href: "/team", icon: Users },
+  // { name: "List Coin", href: "/coins", icon: Coins },
+  // { name: "E-Wallet", href: "/e-wallet", icon: CreditCard },
+  { name: "History", href: "/transactions", icon: History },
+  // { name: "Support", href: "/support", icon: HelpCircle },
+  { name: "Profile", href: "/profile", icon: User },
+  { name: "FAQ,s", href: "/terms", icon: FileText },
 ]
 
 export const ADMIN_NAV_ITEM: AppNavItem = {
@@ -72,18 +44,18 @@ export const ADMIN_NAV_ITEM: AppNavItem = {
 
 const PAGE_TITLE_RULES: Array<{ pattern: RegExp; title: string }> = [
   { pattern: /^\/$/, title: "Welcome" },
-  { pattern: /^\/dashboard(?:\/.+)?$/, title: "Overview" },
-  { pattern: /^\/mining(?:\/.+)?$/, title: "Mining Hub" },
-  { pattern: /^\/deposit(?:\/.+)?$/, title: "Top-Up Center" },
-  { pattern: /^\/withdraw(?:\/.+)?$/, title: "Cash Out" },
-  { pattern: /^\/e-wallet(?:\/.+)?$/, title: "Wallet Hub" },
-  { pattern: /^\/transactions(?:\/.+)?$/, title: "Activity Timeline" },
-  { pattern: /^\/tasks(?:\/.+)?$/, title: "Missions & Quests" },
-  { pattern: /^\/team(?:\/.+)?$/, title: "Network Crew" },
-  { pattern: /^\/coins(?:\/.+)?$/, title: "Asset Catalog" },
-  { pattern: /^\/support(?:\/.+)?$/, title: "Help Desk" },
-  { pattern: /^\/profile(?:\/.+)?$/, title: "Account Center" },
-  { pattern: /^\/terms(?:\/.+)?$/, title: "Knowledge Base" },
+  { pattern: /^\/dashboard(?:\/.+)?$/, title: "Dashboard" },
+  { pattern: /^\/mining(?:\/.+)?$/, title: "Mining" },
+  { pattern: /^\/deposit(?:\/.+)?$/, title: "Deposit" },
+  { pattern: /^\/withdraw(?:\/.+)?$/, title: "Withdraw" },
+  { pattern: /^\/e-wallet(?:\/.+)?$/, title: "E-Wallet" },
+  { pattern: /^\/transactions(?:\/.+)?$/, title: "History" },
+  { pattern: /^\/tasks(?:\/.+)?$/, title: "Tasks" },
+  { pattern: /^\/team(?:\/.+)?$/, title: "Team" },
+  { pattern: /^\/coins(?:\/.+)?$/, title: "Coin Listings" },
+  { pattern: /^\/support(?:\/.+)?$/, title: "Support" },
+  { pattern: /^\/profile(?:\/.+)?$/, title: "Profile" },
+  { pattern: /^\/terms(?:\/.+)?$/, title: "Terms" },
   { pattern: /^\/admin(?:\/.+)?$/, title: "Admin Panel" },
 ]
 
@@ -96,5 +68,5 @@ export function getPageTitle(pathname: string): string {
   const fallback = PRIMARY_NAV_ITEMS.find((item) =>
     pathname === item.href || pathname.startsWith(`${item.href}/`),
   )
-  return fallback?.name ?? "5gbotify"
+  return fallback?.name ?? "Mintmine Pro"
 }

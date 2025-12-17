@@ -163,7 +163,7 @@ export async function seedDatabase(): Promise<SeedResult> {
     await settingsModel.create({
       dailyProfitPercent: 1.5,
       mining: { minPct: 1.5, maxPct: 1.5, roiCap: 3 },
-      gating: { minDeposit: 50, minWithdraw: 30, joinNeedsReferral: true, activeMinDeposit: 80 },
+      gating: { minDeposit: 30, minWithdraw: 30, joinNeedsReferral: true, activeMinDeposit: 80 },
       joiningBonus: { threshold: 0, pct: 0 },
       commission: { baseDirectPct: 0, startAtDeposit: 50, highTierPct: 5, highTierStartAt: 100 },
     })

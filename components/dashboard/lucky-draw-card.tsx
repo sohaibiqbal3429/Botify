@@ -227,7 +227,7 @@ export function LuckyDrawCard({ round, deposits: depositsProp }: LuckyDrawCardPr
             <span className="font-semibold"> {activeRound.prizePoolUsd.toFixed(2)}</span>.
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
-            Submit your transaction hash and receipt after depositing to 5gBotify’s wallet.
+            Submit your transaction hash and receipt after depositing to Mintmine Pro’s wallet.
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
             The admin can lock in the winner at any point, but the official announcement (and prize credit) only happens when the

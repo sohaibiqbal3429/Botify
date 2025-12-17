@@ -22,15 +22,20 @@ if (!globalWithMongoose.mongoose) {
 
 export default async function dbConnect() {
   const hasUri = Boolean(process.env.MONGODB_URI)
-  const seedInMemory = process.env.SEED_IN_MEMORY === "true"
+  const seedFlag = process.env.SEED_IN_MEMORY
+  const preferInMemory =
+    seedFlag === "true" ||
+    (!seedFlag && process.env.NODE_ENV !== "production") ||
+    (!hasUri && process.env.NODE_ENV !== "production")
   const allowFallback = process.env.NODE_ENV !== "production" || process.env.ALLOW_DB_FALLBACK === "true"
 
-  // Explicit demo mode: always use the seeded in-memory DB
-  if (seedInMemory) {
+  if (preferInMemory) {
     if (!globalWithMongoose.__inMemoryDbInitialized) {
       await initializeInMemoryDatabase()
       globalWithMongoose.__inMemoryDbInitialized = true
-      console.warn("[database] Running in demo mode with an in-memory data set because SEED_IN_MEMORY=true.")
+      console.warn(
+        "[database] Running in demo mode with an in-memory data set. Set MONGODB_URI to connect to a persistent database.",
+      )
     }
 
     if (!cached.conn) {
@@ -40,19 +45,9 @@ export default async function dbConnect() {
     return cached.conn
   }
 
-  // No Mongo URI provided: either fail or fall back to in-memory (only when explicitly allowed)
-  if (!hasUri) {
-    if (!allowFallback) {
-      throw new Error("Add MONGODB_URI to .env.local (or set SEED_IN_MEMORY=true for demo mode)")
-    }
-
-    if (!globalWithMongoose.__inMemoryDbInitialized) {
-      await initializeInMemoryDatabase()
-      globalWithMongoose.__inMemoryDbInitialized = true
-      console.warn("[database] MONGODB_URI missing. Using in-memory store for this session.")
-    }
-    cached.conn = cached.conn || { inMemory: true }
-    return cached.conn
+  const uri = process.env.MONGODB_URI
+  if (!uri) {
+    throw new Error("Add MONGODB_URI to .env.local or set SEED_IN_MEMORY=true for demo mode")
   }
 
   if (cached.conn) return cached.conn
@@ -64,10 +59,7 @@ export default async function dbConnect() {
   } catch (error) {
     cached.promise = null
 
-    const message = error instanceof Error ? error.message.toLowerCase() : ""
-    const isAuthFailure = /bad auth|authentication failed/.test(message)
-
-    if (allowFallback || isAuthFailure) {
+    if (allowFallback) {
       console.error("[database] Failed to connect to MongoDB. Falling back to in-memory store.", error)
       await initializeInMemoryDatabase()
       globalWithMongoose.__inMemoryDbInitialized = true
