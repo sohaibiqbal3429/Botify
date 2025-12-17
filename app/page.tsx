@@ -10,8 +10,8 @@ export default function HomePage() {
       <header className="border-b border-border/60 bg-card/80 backdrop-blur-md supports-[backdrop-filter]:bg-card/60 dark:bg-[#101010]/80">
         <div className="container mx-auto flex items-center justify-between px-4 py-4">
           <div className="flex items-center space-x-2">
-            <Image src="/images/logo.png" alt="Mintmine Pro" width={32} height={32} className="rounded-lg" />
-            <span className="text-xl font-bold">Mintmine Pro</span>
+            <Image src="/images/logo.png" alt="5gBotify" width={32} height={32} className="rounded-lg" />
+            <span className="text-xl font-bold">5gBotify</span>
           </div>
           <div className="flex items-center space-x-3">
             <Link href="/auth/login">

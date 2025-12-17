@@ -40,7 +40,7 @@ The application now enforces a single token-bucket policy across CDN, reverse pr
      --duration 2m \
      --summary-export rate-limit-summary.json \
      tests/load/mining-clicks.js \
-     --env BASE_URL=https://staging.mintminepro.com \
+     --env BASE_URL=https://staging.5gbotify.com \
      --env RPS=5000
    ```
 

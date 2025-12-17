@@ -1,6 +1,6 @@
-# MintMinePro Mobile (React Native + Expo)
+# 5gBotify Mobile (React Native + Expo)
 
-This Expo + TypeScript project mirrors the MintMinePro web dashboard using the existing backend APIs.
+This Expo + TypeScript project mirrors the 5gBotify web dashboard using the existing backend APIs.
 
 ## Structure
 - `App.tsx`: App entry with navigation + providers.
@@ -15,15 +15,14 @@ This Expo + TypeScript project mirrors the MintMinePro web dashboard using the e
 ## Environment
 Create a `.env` file in `mobile/` with:
 ```
-API_BASE_URL=https://mintminepro.com/api
+API_BASE_URL=https://5gbotify.com/api
 ```
 Values are read via `app.config.ts` (Expo extra) and `transform-inline-environment-variables`.
 
-- **Canonical production base:** `https://mintminepro.com/api`
-- **Quick reachability check (no auth needed):** `GET https://mintminepro.com/api/public/wallets` should return JSON with publi
-c deposit wallets in a browser/Postman.
-- **Authenticated check:** `GET https://mintminepro.com/api/wallet/balance` with a valid token/cookie confirms balances are rea
-dable. A 401/403 without auth is expected.
+- **Canonical production base:** `https://5gbotify.com/api`
+- **Quick reachability check (no auth needed):** `GET https://5gbotify.com/api/public/wallets` should return JSON with public
+deposit wallets in a browser/Postman.
+- **Authenticated check:** `GET https://5gbotify.com/api/wallet/balance` with a valid token/cookie confirms balances are readable. A 401/403 without auth is expected.
 - The bare `/api` path may return 404/blank in a browser because only defined JSON routes respond; this is normal.
 
 ## Running
@@ -45,7 +44,7 @@ Update bundle IDs (`app.config.ts`), icons, splash, and permissions before publi
 - Keep `API_BASE_URL` pointed at the existing backend. Do not change endpoints, database schema, or auth rules.
 - Confirm the API client attaches auth headers as in `src/services/api/client.ts` and tokens persist via `src/services/storage/tokenStorage.ts`.
 - Verify mining/deposit/withdraw flows against the live backend using a test account.
-- Replace placeholder icons/splash/logo under `assets/` with your MintMinePro branding.
+- Replace placeholder icons/splash/logo under `assets/` with your 5gBotify branding.
 - Set the app name, `owner`, `slug`, `android.package`, and `ios.bundleIdentifier` in `app.config.ts`.
 - Update version fields in `app.config.ts` (`version`, `android.versionCode`, `ios.buildNumber`) before each store upload.
 - Ensure permissions list only what you use (by default, Internet; add notifications/camera/etc. only if required).
@@ -59,14 +58,14 @@ the affected service functions under `src/services/api/`.
 
 ## Google Play Console publishing (step-by-step)
 1. **Register & access**: Create a Google Play Console developer account and pay the one-time fee.
-2. **App listing**: Create a new app, choose default language, app name (e.g., "MintMinePro"), and select app type/content category.
+2. **App listing**: Create a new app, choose default language, app name (e.g., "5gBotify"), and select app type/content category.
 3. **Prepare assets**:
    - App icon (512x512 PNG) and feature graphic (1024x500).
    - Screenshots: Phone (mandatory), tablet if available. Capture real screens from the app.
    - Short & full descriptions that match the web product.
 4. **App signing**: Use Play App Signing (recommended). If using EAS, enable `eas build -p android --profile production` and download the generated keystore if you manage it yourself.
 5. **Build release**:
-   - Ensure `android.package` in `app.config.ts` is unique (e.g., `com.mintminepro.app`).
+   - Ensure `android.package` in `app.config.ts` is unique (e.g., `com.fivegbotify.app`).
    - Run `pnpm install` then `pnpm expo:prebuild` if switching from managed to bare; otherwise stay managed.
    - Generate an AAB with `eas build -p android --profile production` (preferred) or `expo build:android --type app-bundle`.
 6. **Upload**: In Google Play Console, go to **Production > New release** and upload the AAB.
@@ -77,7 +76,7 @@ the affected service functions under `src/services/api/`.
 ## Apple App Store publishing (step-by-step)
 1. **Register**: Join the Apple Developer Program (paid annual membership) and ensure you have a Mac for builds/uploads.
 2. **App IDs & profiles**:
-   - Set `ios.bundleIdentifier` in `app.config.ts` (e.g., `com.mintminepro.app`).
+   - Set `ios.bundleIdentifier` in `app.config.ts` (e.g., `com.fivegbotify.app`).
    - In Apple Developer portal, create an App ID matching the bundle ID.
    - Create a Distribution certificate and Provisioning Profile (App Store) or use automatic signing via EAS.
 3. **Build release**:

@@ -66,7 +66,7 @@ const CustomDrawerContent = (props: any) => {
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerContent}>
       <View style={styles.header}>
-        <Text style={styles.brand}>MintMinePro</Text>
+        <Text style={styles.brand}>5gBotify</Text>
         <Text style={styles.userText}>{user?.email ?? 'Guest'}</Text>
       </View>
       <View style={styles.sectionLabel}>

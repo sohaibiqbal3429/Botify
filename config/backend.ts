@@ -1,6 +1,6 @@
 const DEFAULT_API_BASE =
   process.env.NODE_ENV === "production"
-    ? "https://mintminepro.com/api"
+    ? "https://5gbotify.com/api"
     : "http://localhost:3000/api"
 
 /**

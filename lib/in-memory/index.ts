@@ -1623,7 +1623,7 @@ function createNotifications(users: InMemoryDocument[]): InMemoryDocument[] {
       {
         _id: generateObjectId(),
         userId: user._id,
-        title: "Welcome to Crypto Mine",
+        title: "Welcome to 5gBotify",
         body: "Your account is ready to start mining.",
         read: index === 0,
         createdAt: now,

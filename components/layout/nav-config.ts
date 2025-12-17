@@ -68,5 +68,5 @@ export function getPageTitle(pathname: string): string {
   const fallback = PRIMARY_NAV_ITEMS.find((item) =>
     pathname === item.href || pathname.startsWith(`${item.href}/`),
   )
-  return fallback?.name ?? "Mintmine Pro"
+  return fallback?.name ?? "5gBotify"
 }

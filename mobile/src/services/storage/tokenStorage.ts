@@ -5,8 +5,8 @@ interface TokenPayload {
   user?: any;
 }
 
-const TOKEN_KEY = 'mintminepro_token';
-const USER_KEY = 'mintminepro_user';
+const TOKEN_KEY = '5gbotify_token';
+const USER_KEY = '5gbotify_user';
 
 export const TokenStorage = {
   save: async ({ token, user }: TokenPayload) => {

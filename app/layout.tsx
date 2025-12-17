@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "CryptoMine - Next-Generation Mining Platform",
+  title: "5gBotify - Next-Generation Mining Platform",
   description:
     "Join our innovative mining ecosystem with referral rewards, team building, and sustainable earning opportunities.",
   generator: "v0.app",

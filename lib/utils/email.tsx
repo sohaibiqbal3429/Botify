@@ -19,7 +19,7 @@ export async function sendOTPEmail(email: string, otp: string, purpose = "regist
   }
 
   const transporter = createTransporter()
-  const subject = `Your Mintmine Pro Verification Code`
+  const subject = `Your 5gBotify Verification Code`
 
   const html = `
     <!DOCTYPE html>
@@ -31,7 +31,7 @@ export async function sendOTPEmail(email: string, otp: string, purpose = "regist
     <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="text-align: center; margin-bottom: 30px;">
         <div style="background: #f59e0b; color: white; width: 60px; height: 60px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold;">
-          M
+          5G
         </div>
       </div>
       
@@ -49,7 +49,7 @@ export async function sendOTPEmail(email: string, otp: string, purpose = "regist
       </div>
       
       <div style="text-align: center; margin-top: 30px; font-size: 12px; color: #9ca3af;">
-        <p>© 2025 Mintmine Pro. All rights reserved.</p>
+        <p>(c) 2025 5gBotify. All rights reserved.</p>
       </div>
     </body>
     </html>
@@ -57,7 +57,7 @@ export async function sendOTPEmail(email: string, otp: string, purpose = "regist
 
   try {
     await transporter.sendMail({
-      from: `"Mintmine Pro" <${process.env.SMTP_USER}>`,
+      from: `"5gBotify" <${process.env.SMTP_USER}>`,
       to: email,
       subject,
       html,

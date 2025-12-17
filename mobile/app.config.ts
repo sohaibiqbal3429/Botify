@@ -3,12 +3,12 @@ import { ExpoConfig, ConfigContext } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: 'MintMinePro',
-  slug: 'mintminepro',
+  name: '5gBotify',
+  slug: 'fivegbotify',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
-  scheme: 'mintminepro',
+  scheme: 'fivegbotify',
   userInterfaceStyle: 'light',
   splash: {
     image: './assets/splash.png',
@@ -24,20 +24,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   ios: {
     supportsTablet: true,
-    bundleIdentifier: 'com.mintminepro.app'
+    bundleIdentifier: 'com.fivegbotify.app'
   },
   android: {
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#0f172a'
     },
-    package: 'com.mintminepro.app'
+    package: 'com.fivegbotify.app'
   },
   plugins: [
     [
       'expo-secure-store',
       {
-        faceIDPermission: 'Allow MintMinePro to use Face ID for secure login.'
+        faceIDPermission: 'Allow 5gBotify to use Face ID for secure login.'
       }
     ]
   ]

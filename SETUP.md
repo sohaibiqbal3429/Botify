@@ -1,4 +1,4 @@
-# CryptoMine Platform Setup Guide
+# 5gBotify Platform Setup Guide
 
 ## Quick Setup Instructions
 
