@@ -80,7 +80,7 @@ export async function fetchWalletContext(userId: string): Promise<WalletContext 
     walletBalance: Number(withdrawableSnapshot.current ?? balanceDoc?.current ?? 0),
   }
 
-  const minDeposit = Number(settingsDoc?.gating?.minDeposit ?? 30)
+  const minDeposit = Number(settingsDoc?.gating?.minDeposit ?? 50)
   const withdrawConfig = {
     minWithdraw: Number(settingsDoc?.gating?.minWithdraw ?? 30),
   }

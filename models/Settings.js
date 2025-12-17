@@ -14,7 +14,7 @@ const SettingsSchema = new mongoose.Schema(
       roiCap: { type: Number, default: 3 },
     },
     gating: {
-      minDeposit: { type: Number, default: 30 },
+      minDeposit: { type: Number, default: 50 },
       minWithdraw: { type: Number, default: 30 },
       joinNeedsReferral: { type: Boolean, default: true },
       activeMinDeposit: { type: Number, default: 80 },

@@ -19,7 +19,7 @@ import {
   DEPOSIT_SELF_PERCENT_ACTIVE,
 } from "@/lib/constants/bonuses"
 
-const FAKE_DEPOSIT_AMOUNT = 30
+const FAKE_DEPOSIT_AMOUNT = 50
 const TEST_TRANSACTION_NUMBER = "FAKE-DEPOSIT-12345"
 
 const HASH_PATTERNS = [
