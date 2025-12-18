@@ -3,7 +3,12 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getUserFromRequest } from "@/lib/auth"
 import { enforceUnifiedRateLimit, getRateLimitContext } from "@/lib/rate-limit/unified"
 import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
-import { getMiningRequestStatus, enqueueMiningRequest } from "@/lib/services/mining-queue"
+import {
+  getMiningRequestStatus,
+  enqueueMiningRequest,
+  isMiningQueueEnabled,
+} from "@/lib/services/mining-queue"
+import { MiningActionError, performMiningClick } from "@/lib/services/mining"
 
 export const runtime = "nodejs"
 
@@ -31,6 +36,8 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return json({ error: "Unauthorized" }, { status: 401 }, { outcome: "unauthorized" })
   }
+
+  const queueEnabled = isMiningQueueEnabled()
 
   // 1) Try to read idempotency key from header
   let idempotencyKey = request.headers.get("Idempotency-Key")?.trim()
@@ -60,6 +67,44 @@ export async function POST(request: NextRequest) {
     const u = new URL("/api/mining/click/status", request.url)
     u.searchParams.set("key", idempotencyKey!)
     return u.toString()
+  }
+
+  if (!queueEnabled) {
+    const requestedAt = new Date().toISOString()
+
+    try {
+      const result = await performMiningClick(user.userId, { idempotencyKey })
+
+      return json(
+        {
+          idempotencyKey,
+          status: {
+            status: "completed" as const,
+            idempotencyKey,
+            userId: user.userId,
+            requestedAt,
+            updatedAt: new Date().toISOString(),
+            result: {
+              ...result,
+              message: "Mining rewarded",
+            },
+          },
+        },
+        { status: 200 },
+        { outcome: "inline_completed" },
+      )
+    } catch (err: any) {
+      const status = err instanceof MiningActionError ? err.status ?? 400 : 500
+      return json(
+        {
+          error: err instanceof MiningActionError ? err.message : "Unable to start mining",
+          detail: err?.message ?? String(err),
+          idempotencyKey,
+        },
+        { status },
+        { outcome: "inline_error" },
+      )
+    }
   }
 
   try {
