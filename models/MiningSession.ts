@@ -21,6 +21,7 @@ const MiningSessionSchema = new Schema<IMiningSession>(
   },
 )
 
+MiningSessionSchema.index({ userId: 1 })
 MiningSessionSchema.index({ nextEligibleAt: 1 })
 
 export default createModelProxy<IMiningSession>("MiningSession", MiningSessionSchema)

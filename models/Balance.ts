@@ -59,6 +59,7 @@ const BalanceSchema = new Schema<IBalance>(
   },
 )
 
+BalanceSchema.index({ userId: 1 })
 BalanceSchema.index({ userId: 1, "lockedCapitalLots.lockEnd": 1 })
 
 export default createModelProxy<IBalance>("Balance", BalanceSchema)

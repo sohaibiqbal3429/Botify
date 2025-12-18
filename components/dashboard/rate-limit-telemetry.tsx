@@ -5,15 +5,6 @@ import { Activity, AlertTriangle, Clock3 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
-const OBSERVABILITY_DISABLED_IN_BROWSER =
-  // ✅ Default OFF everywhere unless explicitly enabled via env flag
-  (process.env.NEXT_PUBLIC_ENABLE_OBSERVABILITY_IN_BROWSER ??
-    process.env.ENABLE_OBSERVABILITY_IN_BROWSER ??
-    "false")
-    .toString()
-    .toLowerCase()
-    .trim() !== "true"
-
 interface TelemetryLayer {
   layer: string
   requestRatePerSecond: number
@@ -26,9 +17,8 @@ interface TelemetryResponse {
   layers: TelemetryLayer[]
 }
 
-const MIN_REFRESH_MS = 30_000; // enforce minimum 30s between requests
-const MAX_REFRESH_MS = 120_000; // cap exponential backoff at 2 minutes
-const MAX_REQUESTS_PER_MINUTE = 2; // never exceed 2/min even if tab thrashes
+const MIN_REFRESH_MS = 1000;      // faster when healthy
+const MAX_REFRESH_MS = 30000;     // gentle on errors
 
 function formatLatency(v: number | null) {
   if (v === null || !Number.isFinite(v)) return "—"
@@ -71,26 +61,6 @@ const Tile = memo(function Tile({ layer, windowMs }: { layer: TelemetryLayer; wi
 })
 
 export function RateLimitTelemetryCard() {
-  if (OBSERVABILITY_DISABLED_IN_BROWSER) {
-    return (
-      <Card className="dashboard-card w-full col-span-full crypto-card">
-        <CardHeader className="flex flex-row items-start justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-lg text-foreground dark:text-primary-dark">
-              <Activity className="h-5 w-5 text-primary" /> Rate Limit Telemetry
-            </CardTitle>
-            <p className="text-sm text-muted-foreground dark:text-secondary-dark">
-              Browser observability is disabled (DISABLE_OBSERVABILITY_IN_BROWSER).
-            </p>
-          </div>
-          <Badge variant="outline" className="uppercase tracking-wide text-xs">
-            Disabled
-          </Badge>
-        </CardHeader>
-      </Card>
-    )
-  }
-
   const [layers, setLayers] = useState<TelemetryLayer[]>([])
   const [windowMs, setWindowMs] = useState<number>(60_000)
   const [status, setStatus] = useState<"live" | "degraded">("live")
@@ -98,7 +68,6 @@ export function RateLimitTelemetryCard() {
   const backoffRef = useRef<number>(MIN_REFRESH_MS)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inFlight = useRef<AbortController | null>(null)
-  const requestCounterRef = useRef<{ count: number; windowStart: number }>({ count: 0, windowStart: Date.now() })
 
   const schedule = (ms: number) => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -108,17 +77,7 @@ export function RateLimitTelemetryCard() {
   const tick = async () => {
     // pause when tab hidden (saves CPU/network)
     if (document.visibilityState === "hidden") {
-      schedule(Math.max(15_000, backoffRef.current))
-      return
-    }
-
-    const now = Date.now()
-    const elapsed = now - requestCounterRef.current.windowStart
-    if (elapsed > 60_000) {
-      requestCounterRef.current = { count: 0, windowStart: now }
-    }
-    if (requestCounterRef.current.count >= MAX_REQUESTS_PER_MINUTE) {
-      schedule(Math.max(30_000, backoffRef.current))
+      schedule(5000)
       return
     }
 
@@ -139,22 +98,19 @@ export function RateLimitTelemetryCard() {
       setUpdatedLabel(new Date(data.lastUpdated).toLocaleTimeString())
       setStatus("live")
 
-      requestCounterRef.current.count += 1
-
-      // success → reset backoff and respect minimum cadence
+      // success → reset backoff and refresh quickly
       backoffRef.current = MIN_REFRESH_MS
       schedule(backoffRef.current)
     } catch (e) {
       console.error("telemetry fetch failed", e)
       setStatus("degraded")
-      // exponential backoff (caps at MAX_REFRESH_MS)
+      // exponential backoff (caps at 30s)
       backoffRef.current = Math.min(backoffRef.current * 2, MAX_REFRESH_MS)
       schedule(backoffRef.current)
     }
   }
 
   useEffect(() => {
-    void tick()
     schedule(MIN_REFRESH_MS)
     const onVis = () => schedule(100) // immediately refresh when tab comes back
     document.addEventListener("visibilitychange", onVis)

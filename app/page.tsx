@@ -3,9 +3,6 @@ import { Button } from "@/components/ui/button"
 import { ArrowRight, Shield, Zap } from "lucide-react"
 import Image from "next/image"
 
-export const revalidate = 1800
-export const dynamic = "force-static"
-
 export default function HomePage() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-signal text-slate-50">
@@ -50,7 +47,7 @@ export default function HomePage() {
               Network harvester ready
             </p>
             <h1 className="text-balance text-4xl font-bold leading-tight sm:text-5xl">
-              Run a <span className="text-emerald-300">5G-grade</span> mining surface that looks nothing like Crypto.
+              Run a <span className="text-emerald-300">5G-grade</span> mining surface that looks nothing like MintMine Pro.
             </h1>
             <p className="text-balance text-lg text-slate-300">
               5gbotify ships a top-nav, telemetry-first interface with sharper edges, darker canvas, and bright neon accents.

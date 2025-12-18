@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 
@@ -10,8 +9,8 @@ import { KPICards } from "@/components/dashboard/kpi-cards"
 import { MiningWidget } from "@/components/dashboard/mining-widget"
 import { RateLimitTelemetryCard } from "@/components/dashboard/rate-limit-telemetry"
 import { HalvingChart } from "@/components/dashboard/halving-chart"
-// import { LuckyDrawCard } from "@/components/dashboard/lucky-draw-card"
-// import { InviteAndEarnPanel } from "@/components/dashboard/invite-and-earn-panel"
+import { LuckyDrawCard } from "@/components/dashboard/lucky-draw-card"
+import { InviteAndEarnPanel } from "@/components/dashboard/invite-and-earn-panel"
 
 interface DashboardData {
   kpis: {
@@ -26,9 +25,7 @@ interface DashboardData {
   }
   mining: {
     canMine: boolean
-    requiresDeposit: boolean
     nextEligibleAt: string
-    timeLeft?: number
     earnedInCycle: number
   }
   user: {
@@ -91,8 +88,8 @@ export default function DashboardPage() {
         (dashboardPayload.json && typeof dashboardPayload.json === "object" &&
           (dashboardPayload.json as any).error) ||
         dashboardPayload.rawText
-
       const friendlyMessage = typeof dashError === "string" && dashError.trim() ? dashError.trim() : null
+
       setErrorMessage(friendlyMessage ?? "Failed to load dashboard data")
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error)
@@ -139,11 +136,9 @@ export default function DashboardPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.1),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(6,182,212,0.12),transparent_40%)]" />
       </div>
 
-      {/* <ImportantUpdateModal /> */}
-
+      <ImportantUpdateModal />
       <main className="main-content relative min-w-0">
-        {/* NOTE: max-w-7xl removed => now everything can go full width */}
-        <div className="grid-overlay relative mx-auto flex w-full flex-col gap-8 px-4 pb-12 pt-6 md:px-8">
+        <div className="grid-overlay relative mx-auto flex max-w-7xl flex-col gap-8 px-4 pb-12 pt-6 md:px-8">
           <div className="flex flex-col gap-2">
             <p className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-100">
               5gbotify overview
@@ -152,36 +147,27 @@ export default function DashboardPage() {
             <p className="text-sm text-slate-400">Role: Network Harvester – Tier {data.user.level}</p>
           </div>
 
-          {/* FULL WIDTH: KPI + OPS stacked */}
-          <div className="grid w-full gap-4">
-            <div className="w-full">
-              <KPICards kpis={data.kpis} />
-            </div>
-
-            <div className="w-full rounded-2xl border border-slate-800/70 bg-slate-900/70 p-5 shadow-lg shadow-emerald-500/10">
+          <div className="grid gap-4 lg:grid-cols-[2fr,1fr] lg:items-center">
+            <KPICards kpis={data.kpis} />
+            <div className="rounded-2xl border border-slate-800/70 bg-slate-900/70 p-5 shadow-lg shadow-emerald-500/10">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-emerald-200">Ops status</p>
-                  <p className="text-sm text-slate-300">Backend parity with Crypto , new skin for 5gbotify.</p>
+                  <p className="text-sm text-slate-300">Backend parity with MintMine Pro, new skin for 5gbotify.</p>
                 </div>
-                <span className="rounded-md bg-emerald-500/20 px-3 py-1 text-[11px] font-semibold uppercase text-emerald-100">
-                  synced
-                </span>
+                <span className="rounded-md bg-emerald-500/20 px-3 py-1 text-[11px] font-semibold uppercase text-emerald-100">synced</span>
               </div>
-
-              {/* FULL WIDTH buttons (no 2 columns) */}
-              <div className="mt-4 grid w-full gap-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <Link
                   href="/mining"
-                  className="w-full rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-4 py-3 text-left text-sm font-semibold text-emerald-100 transition hover:-translate-y-[1px] hover:border-emerald-400/70"
+                  className="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-4 py-3 text-left text-sm font-semibold text-emerald-100 transition hover:-translate-y-[1px] hover:border-emerald-400/70"
                 >
                   Launch Mining Hub
                   <span className="block text-xs font-normal text-emerald-50/80">Jump to engine controls</span>
                 </Link>
-
                 <Link
                   href="/wallet/deposit"
-                  className="w-full rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-left text-sm font-semibold text-cyan-100 transition hover:-translate-y-[1px] hover:border-cyan-400/60"
+                  className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-left text-sm font-semibold text-cyan-100 transition hover:-translate-y-[1px] hover:border-cyan-400/60"
                 >
                   Add funds in Top-Up Center
                   <span className="block text-xs font-normal text-cyan-50/80">Same flow, sharper look</span>
@@ -190,23 +176,19 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Already full width list */}
-          <div className="grid w-full gap-6">
-            <div className="w-full">
-              <MiningWidget mining={data.mining} onMiningSuccess={fetchDashboardData} />
-            </div>
-            <div className="w-full">
+          <div className="grid gap-6 xl:grid-cols-[2fr,1.25fr]">
+            <MiningWidget mining={data.mining} onMiningSuccess={fetchDashboardData} />
+            <div className="grid gap-6">
               <HalvingChart />
-            </div>
-            <div className="w-full">
               <RateLimitTelemetryCard />
             </div>
           </div>
 
-          {/* Make this section full width too */}
-          <div className="grid w-full gap-6">
-            {/* <LuckyDrawCard currentUser={user} /> */}
-            {/* <InviteAndEarnPanel referralCode={data.user.referralCode} /> */}
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <LuckyDrawCard currentUser={user} />
+            </div>
+            <InviteAndEarnPanel referralCode={data.user.referralCode} />
           </div>
         </div>
       </main>

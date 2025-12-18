@@ -23,4 +23,6 @@ const AppSettingSchema = new Schema<IAppSetting>(
   },
 )
 
+AppSettingSchema.index({ key: 1 }, { unique: true })
+
 export default createModelProxy<IAppSetting>("AppSetting", AppSettingSchema)

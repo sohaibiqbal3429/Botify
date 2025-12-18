@@ -1,7 +1,7 @@
 import dbConnect from "@/lib/mongodb"
-import User, { type IUser } from "@/models/User"
-import Balance, { type IBalance } from "@/models/Balance"
-import Settings, { type ISettings } from "@/models/Settings"
+import User from "@/models/User"
+import Balance from "@/models/Balance"
+import Settings from "@/models/Settings"
 import { calculateWithdrawableSnapshot } from "@/lib/utils/locked-capital"
 import { ACTIVE_DEPOSIT_THRESHOLD } from "@/lib/constants/bonuses"
 
@@ -38,9 +38,9 @@ export async function fetchWalletContext(userId: string): Promise<WalletContext 
   await dbConnect()
 
   const [userDoc, balanceDoc, settingsDoc] = await Promise.all([
-    User.findById(userId).lean<IUser>().exec(),
-    Balance.findOne({ userId }).lean<IBalance>().exec(),
-    Settings.findOne().lean<ISettings>().exec(),
+    User.findById(userId).lean(),
+    Balance.findOne({ userId }).lean(),
+    Settings.findOne().lean(),
   ])
 
   if (!userDoc) return null
@@ -80,7 +80,7 @@ export async function fetchWalletContext(userId: string): Promise<WalletContext 
     walletBalance: Number(withdrawableSnapshot.current ?? balanceDoc?.current ?? 0),
   }
 
-  const minDeposit = Math.max(50, Number(settingsDoc?.gating?.minDeposit ?? 50))
+  const minDeposit = Number(settingsDoc?.gating?.minDeposit ?? 30)
   const withdrawConfig = {
     minWithdraw: Number(settingsDoc?.gating?.minWithdraw ?? 30),
   }

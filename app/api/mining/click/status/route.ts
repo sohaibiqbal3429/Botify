@@ -2,19 +2,23 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import { getUserFromRequest } from "@/lib/auth"
 import { getMiningRequestStatus } from "@/lib/services/mining-queue"
+import { enforceUnifiedRateLimit, getRateLimitContext } from "@/lib/rate-limit/unified"
 import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
-
-export const runtime = "nodejs"
-export const dynamic = "force-dynamic"
 
 export async function GET(request: NextRequest) {
   const startedAt = Date.now()
   const path = new URL(request.url).pathname
+  const rateContext = getRateLimitContext(request)
   trackRequestRate("backend", { path })
 
   const respond = (response: NextResponse, tags: Record<string, string | number> = {}) => {
     recordRequestLatency("backend", Date.now() - startedAt, { path, status: response.status, ...tags })
     return response
+  }
+
+  const rateDecision = await enforceUnifiedRateLimit("backend", rateContext, { path })
+  if (!rateDecision.allowed && rateDecision.response) {
+    return respond(rateDecision.response, { outcome: "rate_limited" })
   }
 
   const user = getUserFromRequest(request)
@@ -36,12 +40,33 @@ export async function GET(request: NextRequest) {
     })
   }
 
+  const headers: Record<string, string> = { "Cache-Control": "no-store" }
+  let statusCode = 202
+
+  if (status.status === "queued" || status.status === "processing") {
+    if (status.queueDepth !== undefined) {
+      headers["X-Queue-Depth"] = String(status.queueDepth)
+    }
+  }
+
+  if (status.status === "completed") {
+    statusCode = 200
+  } else if (status.status === "failed") {
+    statusCode = status.error?.retryable ? 503 : 409
+    if (status.error?.retryAfterMs) {
+      const retrySeconds = Math.max(1, Math.ceil(status.error.retryAfterMs / 1000))
+      headers["Retry-After"] = retrySeconds.toString()
+      const backoffSeconds = Math.min(600, Math.pow(2, Math.ceil(Math.log2(retrySeconds))))
+      headers["X-Backoff-Hint"] = backoffSeconds.toString()
+    }
+  }
+
   return respond(
     NextResponse.json(
       { status },
       {
-        status: status.status === "completed" ? 200 : status.status === "failed" ? 409 : 202,
-        headers: { "Cache-Control": "no-store", "Idempotency-Key": status.idempotencyKey },
+        status: statusCode,
+        headers,
       },
     ),
     { outcome: status.status },

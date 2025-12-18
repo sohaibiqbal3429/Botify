@@ -6,27 +6,6 @@ export function GET() {
   const windowMs = 60_000
   const snapshot = getRateLimitTelemetrySnapshot({ windowMs })
 
-  const observabilityEnabled =
-    (process.env.NEXT_PUBLIC_ENABLE_OBSERVABILITY_IN_BROWSER ??
-      process.env.ENABLE_OBSERVABILITY_IN_BROWSER ??
-      "false")
-      .toString()
-      .toLowerCase()
-      .trim() === "true"
-
-  if (!observabilityEnabled) {
-    return NextResponse.json(
-      { windowMs, lastUpdated: new Date().toISOString(), layers: [] },
-      {
-        status: 200,
-        headers: {
-          "Cache-Control": "public, max-age=60, stale-while-revalidate=60",
-          "X-Observability-Disabled": "true",
-        },
-      },
-    )
-  }
-
   return NextResponse.json(
     {
       windowMs,
@@ -40,7 +19,7 @@ export function GET() {
     },
     {
       headers: {
-        "Cache-Control": "public, max-age=15, stale-while-revalidate=45",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
       },
     },
   )
