@@ -39,11 +39,10 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
       const res = await fetch("/api/mining/click", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": idempotencyKey,
-        },
-      })
-
+    "Content-Type": "application/json",
+    "Idempotency-Key": crypto.randomUUID(), // or store/reuse one
+  },
+})
       const data = await res.json().catch(() => ({}))
 
       if (res.status === 200) {
