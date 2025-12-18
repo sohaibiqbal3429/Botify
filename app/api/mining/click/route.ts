@@ -13,6 +13,22 @@ import { MiningActionError, performMiningClick } from "@/lib/services/mining"
 
 export const runtime = "nodejs"
 
+const DEPENDENCY_TIMEOUT_MS = Number(process.env.MINING_CLICK_DEP_TIMEOUT_MS ?? 5000)
+const INLINE_OPERATION_TIMEOUT_MS = Number(process.env.MINING_CLICK_INLINE_TIMEOUT_MS ?? 8000)
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: NodeJS.Timeout
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`TIMEOUT:${label}`)), ms)
+  })
+
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId))
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && error.message?.startsWith("TIMEOUT:")
+}
+
 export async function POST(request: NextRequest) {
   const startedAt = Date.now()
   const path = new URL(request.url).pathname
@@ -75,7 +91,11 @@ export async function POST(request: NextRequest) {
     const requestedAt = new Date().toISOString()
 
     try {
-      const result = await performMiningClick(user.userId, { idempotencyKey })
+      const result = await withTimeout(
+        performMiningClick(user.userId, { idempotencyKey }),
+        INLINE_OPERATION_TIMEOUT_MS,
+        "perform-mining",
+      )
 
       return json(
         {
@@ -89,7 +109,7 @@ export async function POST(request: NextRequest) {
             updatedAt: new Date().toISOString(),
             result: {
               ...result,
-              message: "Mining rewarded",
+              message: "Rewarded",
             },
           },
         },
@@ -97,6 +117,17 @@ export async function POST(request: NextRequest) {
         { outcome: "inline_completed" },
       )
     } catch (err: any) {
+      if (isTimeoutError(err)) {
+        return json(
+          {
+            error: "Mining service is responding slowly. Please retry shortly.",
+            idempotencyKey,
+          },
+          { status: 503, headers: { "Retry-After": "3" } },
+          { outcome: "inline_timeout" },
+        )
+      }
+
       const status = err instanceof MiningActionError ? err.status ?? 400 : 500
       return json(
         {
@@ -111,7 +142,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const existing = await getMiningRequestStatus(idempotencyKey)
+    const existing = await withTimeout(
+      getMiningRequestStatus(idempotencyKey),
+      DEPENDENCY_TIMEOUT_MS,
+      "get-status",
+    )
     if (existing && existing.userId === user.userId) {
       const headers: Record<string, string> = { "Cache-Control": "no-store" }
       if (existing.queueDepth !== undefined) headers["X-Queue-Depth"] = String(existing.queueDepth)
@@ -132,10 +167,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { status } = await enqueueMiningRequest({
-      userId: user.userId,
-      idempotencyKey,
-    })
+    const { status } = await withTimeout(
+      enqueueMiningRequest({
+        userId: user.userId,
+        idempotencyKey,
+      }),
+      DEPENDENCY_TIMEOUT_MS,
+      "enqueue",
+    )
 
     const headers: Record<string, string> = { "Cache-Control": "no-store" }
     if (status.queueDepth !== undefined) headers["X-Queue-Depth"] = String(status.queueDepth)
@@ -147,7 +186,7 @@ export async function POST(request: NextRequest) {
     )
   } catch (err: any) {
     console.error("[mining/click] enqueue failed:", err)
-    if (err instanceof MiningStatusUnavailableError) {
+    if (isTimeoutError(err) || err instanceof MiningStatusUnavailableError) {
       return json(
         { error: "Mining queue temporarily unavailable. Please retry." },
         { status: 503, headers: { "Retry-After": "3" } },
