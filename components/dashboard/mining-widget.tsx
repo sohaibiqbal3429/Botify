@@ -17,6 +17,14 @@ export interface MiningWidgetProps {
 const POLL_INTERVAL_MS = 1500
 const POLL_MAX_MS = 45_000
 
+function makeIdempotencyKey() {
+  // Prefer stable per-click UUID when available
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID()
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
 export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
@@ -32,17 +40,18 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
     setFeedback({})
     setIsLoading(true)
 
-    const idempotencyKey =
-      (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`) as string
+    const idempotencyKey = makeIdempotencyKey()
 
     try {
       const res = await fetch("/api/mining/click", {
         method: "POST",
         headers: {
-    "Content-Type": "application/json",
-    "Idempotency-Key": crypto.randomUUID(), // or store/reuse one
-  },
-})
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey, // ✅ use the generated one
+        },
+        cache: "no-store",
+      })
+
       const data = await res.json().catch(() => ({}))
 
       if (res.status === 200) {
@@ -128,7 +137,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
       <button
         onClick={handleMining}
         disabled={!canMine || isLoading || !!polling}
-        className="rounded-xl px-4 py-2 bg-emerald-500 text-black disabled:opacity-60"
+        className="rounded-xl bg-emerald-500 px-4 py-2 text-black disabled:opacity-60"
       >
         {isLoading ? "Starting..." : polling ? "Working..." : "Start Boost Cycle"}
       </button>
