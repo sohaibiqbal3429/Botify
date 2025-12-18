@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
             updatedAt: new Date().toISOString(),
             result: {
               ...result,
-              message: "Mining rewarded",
+              message: "Rewarded",
             },
           },
         },
