@@ -40,10 +40,8 @@ export async function POST(request: NextRequest) {
 
   const queueEnabled = isMiningQueueEnabled()
 
-  // 1) Try to read idempotency key from header
   let idempotencyKey = request.headers.get("Idempotency-Key")?.trim()
 
-  // 2) If not present, try body: { idempotencyKey: "..." }
   if (!idempotencyKey) {
     try {
       const contentType = request.headers.get("content-type")?.toLowerCase() ?? ""
@@ -57,15 +55,18 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 3) Still missing? Generate a deterministic key (per user per day) so UI doesn't break.
-  // You can swap this to crypto.randomUUID() if you prefer.
   if (!idempotencyKey) {
-    const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+    const today = new Date().toISOString().slice(0, 10)
     idempotencyKey = `mine:${user.userId}:${today}`
   }
 
+  // ✅ FIX: build statusUrl from the current route path
   const makeStatusUrl = () => {
-    const u = new URL("/api/mining/click/status", request.url)
+    const current = new URL(request.url)
+    const u = new URL(request.url)
+
+    // If POST is at ".../mining/click", status is at ".../mining/click/status"
+    u.pathname = current.pathname.replace(/\/$/, "") + "/status"
     u.searchParams.set("key", idempotencyKey!)
     return u.toString()
   }
@@ -79,6 +80,7 @@ export async function POST(request: NextRequest) {
       return json(
         {
           idempotencyKey,
+          statusUrl: makeStatusUrl(), // ✅ include for consistency
           status: {
             status: "completed" as const,
             idempotencyKey,
@@ -123,9 +125,11 @@ export async function POST(request: NextRequest) {
               : 409
             : 202
 
-      return json({ status: existing, statusUrl: makeStatusUrl(), idempotencyKey }, { status: statusCode, headers }, {
-        outcome: `existing_${existing.status}`,
-      })
+      return json(
+        { status: existing, statusUrl: makeStatusUrl(), idempotencyKey },
+        { status: statusCode, headers },
+        { outcome: `existing_${existing.status}` },
+      )
     }
 
     const { status } = await enqueueMiningRequest({
