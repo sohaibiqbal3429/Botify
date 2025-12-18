@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { getUserFromRequest } from "@/lib/auth"
-import { getMiningRequestStatus } from "@/lib/services/mining-queue"
+import { getMiningRequestStatus, MiningStatusUnavailableError } from "@/lib/services/mining-queue"
 import { enforceUnifiedRateLimit, getRateLimitContext } from "@/lib/rate-limit/unified"
 import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
 
@@ -45,6 +45,14 @@ export async function GET(request: NextRequest) {
     ])
   } catch (err) {
     console.error("Mining click status timeout/error:", err)
+    if (err instanceof MiningStatusUnavailableError) {
+      return json(
+        { error: "Status temporarily unavailable. Please retry shortly." },
+        { status: 503, headers: { "Retry-After": "3", "Cache-Control": "no-store" } },
+        { outcome: "status_unavailable" },
+      )
+    }
+
     return json({ error: "Status check timed out" }, { status: 504 }, { outcome: "timeout" })
   }
 

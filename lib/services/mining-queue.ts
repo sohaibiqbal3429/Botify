@@ -1,6 +1,8 @@
 import { enqueueMiningClickJob, getMiningQueueDepth, isMiningQueueEnabled, type MiningClickJobData } from "@/lib/queues/mining-clicks"
 import { getRedisClient, isRedisEnabled } from "@/lib/redis"
 
+const STATUS_READ_TIMEOUT_MS = Number(process.env.MINING_STATUS_READ_TIMEOUT_MS ?? 2000)
+
 export const MINING_STATUS_TTL_MS = 1000 * 60 * 60 * 24 // 24 hours
 export const MINING_FAILURE_TTL_MS = 1000 * 60 * 15 // 15 minutes for transient errors
 
@@ -9,6 +11,13 @@ export type MiningRequestState =
   | "processing"
   | "completed"
   | "failed"
+
+export class MiningStatusUnavailableError extends Error {
+  constructor(message: string, public cause?: unknown) {
+    super(message)
+    this.name = "MiningStatusUnavailableError"
+  }
+}
 
 export interface MiningRequestStatus {
   status: MiningRequestState
@@ -39,7 +48,21 @@ export async function getMiningRequestStatus(idempotencyKey: string): Promise<Mi
   }
 
   const redis = getRedisClient()
-  const raw = await redis.get(getStatusKey(idempotencyKey))
+  const readPromise = redis.get(getStatusKey(idempotencyKey))
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new MiningStatusUnavailableError("Timed out reading mining status")), STATUS_READ_TIMEOUT_MS),
+  )
+
+  let raw: string | null
+  try {
+    raw = await Promise.race([readPromise, timeout])
+  } catch (error) {
+    console.warn(`[mining] Failed to load status for ${idempotencyKey}`, error)
+    throw error instanceof MiningStatusUnavailableError
+      ? error
+      : new MiningStatusUnavailableError("Unable to read mining status", error)
+  }
+
   if (!raw) {
     return null
   }
