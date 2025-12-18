@@ -15,8 +15,8 @@ export interface MiningWidgetProps {
 }
 
 const POLL_INTERVAL_MS = 1500
-const POLL_WARNING_MS = 45_000
-const POLL_MAX_MS = 180_000
+const POLL_WARNING_MS = 30_000
+const POLL_MAX_MS = 45_000
 
 function makeIdempotencyKey() {
   // Prefer stable per-click UUID when available
@@ -43,17 +43,20 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
     setIsLoading(false)
   }, [])
 
-  const parseJsonSafely = useCallback(async (response: Response) => {
-    const contentType = response.headers.get("content-type") || ""
-    if (!contentType.toLowerCase().includes("application/json")) {
-      return null
+  const readResponsePayload = useCallback(async (response: Response) => {
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
+
+    if (contentType.includes("application/json")) {
+      try {
+        const data = await response.json()
+        return { data, text: null as string | null }
+      } catch {
+        // fall through to text read below
+      }
     }
 
-    try {
-      return await response.json()
-    } catch {
-      return null
-    }
+    const text = await response.text().catch(() => "")
+    return { data: null as any, text }
   }, [])
 
   const statusCopy = useMemo(() => {
@@ -80,12 +83,19 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
           "Idempotency-Key": idempotencyKey, // ✅ use the generated one
         },
         cache: "no-store",
+        body: JSON.stringify({ idempotencyKey }),
       })
 
-      const data = (await parseJsonSafely(res)) ?? {}
+      const { data, text } = await readResponsePayload(res)
+      const deriveStatusUrl = () => {
+        const current = res.url ? new URL(res.url, window.location.origin) : new URL("/api/mining/click", window.location.origin)
+        current.pathname = current.pathname.replace(/\/$/, "") + "/status"
+        current.searchParams.set("key", idempotencyKey)
+        return current.toString()
+      }
 
       if (res.status === 200) {
-        setFeedback({ success: data?.status?.result?.message ?? "Mining successful!" })
+        setFeedback({ success: data?.status?.result?.message ?? "Rewarded ✅" })
         setCanMine(false)
         router.refresh()
         onMiningSuccess?.()
@@ -93,7 +103,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
       }
 
       if (res.status === 202) {
-        const statusUrl = typeof data?.statusUrl === "string" ? data.statusUrl : ""
+        const statusUrl = typeof data?.statusUrl === "string" ? data.statusUrl : deriveStatusUrl()
         if (!statusUrl) {
           setFeedback({ error: "Server did not return statusUrl." })
           return
@@ -105,8 +115,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
       }
 
       if (res.status === 504) {
-        const fallbackStatusUrl = `/api/mining/click/status?key=${encodeURIComponent(idempotencyKey)}`
-        startPolling(fallbackStatusUrl, "Request timed out. Checking status...")
+        startPolling(deriveStatusUrl(), "Request timed out. Checking status...")
         return
       }
 
@@ -118,14 +127,15 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
         return
       }
 
-      const fallbackError = data?.error || `Unable to start mining. (${res.status})`
+      const fallbackError =
+        data?.error || text?.trim() || `Unable to start mining. (${res.status})`
       setFeedback({ error: fallbackError })
     } catch {
       setFeedback({ error: "Network error. Please try again." })
     } finally {
       setIsLoading(false)
     }
-  }, [onMiningSuccess, parseJsonSafely, resetState, router])
+  }, [onMiningSuccess, readResponsePayload, resetState, router])
 
   useEffect(() => {
     if (!polling) return
@@ -152,11 +162,11 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
         }
 
         const res = await fetch(polling.url, { method: "GET", cache: "no-store" })
-        const data = (await parseJsonSafely(res)) ?? {}
+        const { data, text } = await readResponsePayload(res)
         if (cancelled) return
 
         if (res.status === 200) {
-          setFeedback({ success: data?.status?.result?.message ?? "Mining successful!" })
+          setFeedback({ success: data?.status?.result?.message ?? "Rewarded ✅" })
           setCanMine(false)
           setPolling(null)
           router.refresh()
@@ -180,11 +190,12 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
           return
         }
 
-        setFeedback({ error: data?.error || `Mining failed (status ${res.status}).` })
+        setFeedback({ error: data?.error || text?.trim() || `Mining failed (status ${res.status}).` })
         setPolling(null)
         setIsLoading(false)
-      } catch {
-        // ignore transient polling errors
+      } catch (error) {
+        if (cancelled) return
+        setFeedback((prev) => prev.error ? prev : { error: "Status check failed. Retrying..." })
       }
     }
 
@@ -195,7 +206,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
       cancelled = true
       clearInterval(i)
     }
-  }, [polling, onMiningSuccess, parseJsonSafely, router, statusCopy])
+  }, [polling, onMiningSuccess, readResponsePayload, router, statusCopy])
 
   return (
     <div className="space-y-3">

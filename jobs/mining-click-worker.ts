@@ -18,7 +18,7 @@ createMiningClickWorker(async (job) => {
     const result = await performMiningClick(userId, { idempotencyKey })
     await markMiningStatusCompleted(idempotencyKey, userId, {
       ...result,
-      message: "Mining rewarded",
+      message: "Rewarded",
       completedAt: new Date().toISOString(),
     })
 
