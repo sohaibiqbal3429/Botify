@@ -15,7 +15,8 @@ export interface MiningWidgetProps {
 }
 
 const POLL_INTERVAL_MS = 1500
-const POLL_MAX_MS = 45_000
+const POLL_WARNING_MS = 45_000
+const POLL_MAX_MS = 180_000
 
 function makeIdempotencyKey() {
   // Prefer stable per-click UUID when available
@@ -124,11 +125,22 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
 
     const tick = async () => {
       try {
-        if (Date.now() - pollStartedAtRef.current > POLL_MAX_MS) {
+        const elapsed = Date.now() - pollStartedAtRef.current
+        if (elapsed > POLL_MAX_MS) {
           setFeedback({ error: "Mining timed out. Please try again." })
           setPolling(null)
           setIsLoading(false)
           return
+        }
+
+        if (elapsed > POLL_WARNING_MS) {
+          setFeedback((prev) =>
+            prev.error
+              ? prev
+              : {
+                  success: "Mining is still processing. We'll keep checking...",
+                },
+          )
         }
 
         const res = await fetch(polling.url, { method: "GET", cache: "no-store" })
