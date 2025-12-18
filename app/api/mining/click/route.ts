@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import crypto from "node:crypto"
 
 import { getUserFromRequest } from "@/lib/auth"
 import { enforceUnifiedRateLimit, getRateLimitContext } from "@/lib/rate-limit/unified"
@@ -16,8 +15,12 @@ export async function POST(request: NextRequest) {
 
   const respond = (response: NextResponse, tags: Record<string, string | number> = {}) => {
     recordRequestLatency("backend", Date.now() - startedAt, { path, status: response.status, ...tags })
+    response.headers.set("Cache-Control", "no-store")
     return response
   }
+
+  const json = (body: any, init?: ResponseInit, tags?: Record<string, string | number>) =>
+    respond(NextResponse.json(body, init), tags)
 
   const rateDecision = await enforceUnifiedRateLimit("backend", rateContext, { path })
   if (!rateDecision.allowed && rateDecision.response) {
@@ -26,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   const user = getUserFromRequest(request)
   if (!user) {
-    return respond(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), { outcome: "unauthorized" })
+    return json({ error: "Unauthorized" }, { status: 401 }, { outcome: "unauthorized" })
   }
 
   // 1) Try to read idempotency key from header
@@ -74,10 +77,9 @@ export async function POST(request: NextRequest) {
               : 409
             : 202
 
-      return respond(
-        NextResponse.json({ status: existing, statusUrl: makeStatusUrl(), idempotencyKey }, { status: statusCode, headers }),
-        { outcome: `existing_${existing.status}` },
-      )
+      return json({ status: existing, statusUrl: makeStatusUrl(), idempotencyKey }, { status: statusCode, headers }, {
+        outcome: `existing_${existing.status}`,
+      })
     }
 
     const { status } = await enqueueMiningRequest({
@@ -88,24 +90,20 @@ export async function POST(request: NextRequest) {
     const headers: Record<string, string> = { "Cache-Control": "no-store" }
     if (status.queueDepth !== undefined) headers["X-Queue-Depth"] = String(status.queueDepth)
 
-    return respond(
-      NextResponse.json(
-        { status, statusUrl: makeStatusUrl(), idempotencyKey },
-        { status: status.status === "completed" ? 200 : 202, headers },
-      ),
+    return json(
+      { status, statusUrl: makeStatusUrl(), idempotencyKey },
+      { status: status.status === "completed" ? 200 : 202, headers },
       { outcome: status.status },
     )
   } catch (err: any) {
     console.error("[mining/click] enqueue failed:", err)
-    return respond(
-      NextResponse.json(
-        {
-          error: "Unable to start mining",
-          detail: err?.message ?? String(err),
-          idempotencyKey,
-        },
-        { status: 500 },
-      ),
+    return json(
+      {
+        error: "Unable to start mining",
+        detail: err?.message ?? String(err),
+        idempotencyKey,
+      },
+      { status: 500 },
       { outcome: "exception" },
     )
   }
