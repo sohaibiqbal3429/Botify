@@ -65,6 +65,11 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
     setIsLoading(true)
 
     const idempotencyKey = makeIdempotencyKey()
+    const startPolling = (statusUrl: string, message?: string) => {
+      pollStartedAtRef.current = Date.now()
+      setPolling({ url: statusUrl, idempotencyKey })
+      if (message) setFeedback({ success: message })
+    }
 
     try {
       const res = await fetch("/api/mining/click", {
@@ -92,10 +97,15 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
           setFeedback({ error: "Server did not return statusUrl." })
           return
         }
-        pollStartedAtRef.current = Date.now()
-        setPolling({ url: statusUrl, idempotencyKey })
+        startPolling(statusUrl, undefined)
         const queueDepth = res.headers.get("X-Queue-Depth")
         setFeedback({ success: queueDepth ? `Mining queued. Position ~${queueDepth}` : "Mining queued..." })
+        return
+      }
+
+      if (res.status === 504) {
+        const fallbackStatusUrl = `/api/mining/click/status?key=${encodeURIComponent(idempotencyKey)}`
+        startPolling(fallbackStatusUrl, "Request timed out. Checking status...")
         return
       }
 
@@ -180,7 +190,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
         {isLoading ? "Starting..." : polling ? "Working..." : "Start Boost Cycle"}
       </button>
 
-      <div className="text-slate-300">Cycle yieldd: ${Number(mining.earnedInCycle ?? 0).toFixed(2)}</div>
+      <div className="text-slate-300">Cycle yield: ${Number(mining.earnedInCycle ?? 0).toFixed(2)}</div>
     </div>
   )
 }
