@@ -7,6 +7,7 @@ import {
   getMiningRequestStatus,
   enqueueMiningRequest,
   isMiningQueueEnabled,
+  MiningStatusUnavailableError,
 } from "@/lib/services/mining-queue"
 import { MiningActionError, performMiningClick } from "@/lib/services/mining"
 
@@ -142,6 +143,14 @@ export async function POST(request: NextRequest) {
     )
   } catch (err: any) {
     console.error("[mining/click] enqueue failed:", err)
+    if (err instanceof MiningStatusUnavailableError) {
+      return json(
+        { error: "Mining queue temporarily unavailable. Please retry." },
+        { status: 503, headers: { "Retry-After": "3" } },
+        { outcome: "queue_unavailable" },
+      )
+    }
+
     return json(
       {
         error: "Unable to start mining",

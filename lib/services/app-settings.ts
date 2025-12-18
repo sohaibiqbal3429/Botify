@@ -1,5 +1,3 @@
-import { type FilterQuery } from "mongoose"
-
 import dbConnect from "@/lib/mongodb"
 import AppSetting from "@/models/AppSetting"
 import AppSettingAudit, { type IAppSettingAudit } from "@/models/AppSettingAudit"
@@ -65,6 +63,8 @@ interface WalletSettingsSnapshot {
   admin: WalletSettingAdminRecord[]
   public: WalletSettingPublicRecord[]
 }
+
+type AuditFilter = Parameters<(typeof AppSettingAudit)["find"]>[0]
 
 let walletCache: { snapshot: WalletSettingsSnapshot; expiresAt: number } | null = null
 
@@ -132,7 +132,6 @@ function computePublicRecords(adminRecords: WalletSettingAdminRecord[]): WalletS
       address: record.address,
     }))
 }
-
 async function loadWalletSettingsSnapshot(): Promise<WalletSettingsSnapshot> {
   const now = Date.now()
   if (walletCache && walletCache.expiresAt > now) {
@@ -389,9 +388,7 @@ export async function updateWalletAddressSettings(input: UpdateWalletSettingsInp
   return getWalletSettingsForAdmin()
 }
 
-export async function findAuditEntries(
-  filter: FilterQuery<IAppSettingAudit>,
-): Promise<IAppSettingAudit[]> {
+export async function findAuditEntries(filter: AuditFilter): Promise<IAppSettingAudit[]> {
   await dbConnect()
   return AppSettingAudit.find(filter).sort({ changedAt: -1 }).exec()
 }

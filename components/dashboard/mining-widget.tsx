@@ -110,6 +110,14 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
         return
       }
 
+      if (res.status === 503 || res.status === 409) {
+        const retryAfter = res.headers.get("Retry-After")
+        const suffix = retryAfter ? ` Please retry in ~${retryAfter}s.` : ""
+        const fallbackError = data?.error || (res.status === 503 ? "Mining temporarily unavailable." : "Mining request conflict.")
+        setFeedback({ error: `${fallbackError}${suffix}` })
+        return
+      }
+
       const fallbackError = data?.error || `Unable to start mining. (${res.status})`
       setFeedback({ error: fallbackError })
     } catch {

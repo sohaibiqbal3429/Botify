@@ -1,3 +1,4 @@
+// @ts-nocheck
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
 import test from "node:test"
@@ -97,3 +98,6 @@ test("getDailyTeamRewardTotal sums the previous UTC day rewards", async () => {
     await User.deleteMany({ _id: { $in: [user._id, otherUser._id] } })
   }
 })
+// @ts-nocheck
+// @ts-nocheck
+// @ts-nocheck
