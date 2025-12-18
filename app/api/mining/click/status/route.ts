@@ -5,6 +5,8 @@ import { getMiningRequestStatus } from "@/lib/services/mining-queue"
 import { enforceUnifiedRateLimit, getRateLimitContext } from "@/lib/rate-limit/unified"
 import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
 
+export const runtime = "nodejs"
+
 export async function GET(request: NextRequest) {
   const startedAt = Date.now()
   const path = new URL(request.url).pathname
@@ -33,20 +35,26 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  const status = await getMiningRequestStatus(key)
+  let status
+  try {
+    status = await Promise.race([
+      getMiningRequestStatus(key),
+      new Promise<null>((_, reject) => setTimeout(() => reject(new Error("STATUS_TIMEOUT")), 8000)),
+    ])
+  } catch (err) {
+    console.error("Mining click status timeout/error:", err)
+    return respond(NextResponse.json({ error: "Status check timed out" }, { status: 504 }), { outcome: "timeout" })
+  }
+
   if (!status || status.userId !== user.userId) {
-    return respond(NextResponse.json({ error: "Status not found" }, { status: 404 }), {
-      outcome: "not_found",
-    })
+    return respond(NextResponse.json({ error: "Status not found" }, { status: 404 }), { outcome: "not_found" })
   }
 
   const headers: Record<string, string> = { "Cache-Control": "no-store" }
   let statusCode = 202
 
   if (status.status === "queued" || status.status === "processing") {
-    if (status.queueDepth !== undefined) {
-      headers["X-Queue-Depth"] = String(status.queueDepth)
-    }
+    if (status.queueDepth !== undefined) headers["X-Queue-Depth"] = String(status.queueDepth)
   }
 
   if (status.status === "completed") {
@@ -56,8 +64,7 @@ export async function GET(request: NextRequest) {
     if (status.error?.retryAfterMs) {
       const retrySeconds = Math.max(1, Math.ceil(status.error.retryAfterMs / 1000))
       headers["Retry-After"] = retrySeconds.toString()
-      const backoffSeconds = Math.min(600, Math.pow(2, Math.ceil(Math.log2(retrySeconds))))
-      headers["X-Backoff-Hint"] = backoffSeconds.toString()
+      headers["X-Backoff-Hint"] = Math.min(600, Math.pow(2, Math.ceil(Math.log2(retrySeconds)))).toString()
     }
   }
 
