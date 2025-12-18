@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 
 type FeedbackState = { success?: string; error?: string }
 
-interface MiningWidgetProps {
+export interface MiningWidgetProps {
   mining: {
     canMine: boolean
     nextEligibleAt: string
@@ -17,7 +17,7 @@ interface MiningWidgetProps {
 const POLL_INTERVAL_MS = 1500
 const POLL_MAX_MS = 45_000
 
-export default function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
+export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [feedback, setFeedback] = useState<FeedbackState>({})
