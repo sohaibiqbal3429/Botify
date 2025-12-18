@@ -142,7 +142,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
         {isLoading ? "Starting..." : polling ? "Working..." : "Start Boost Cycle"}
       </button>
 
-      <div className="text-slate-300">Cycle yield: ${Number(mining.earnedInCycle ?? 0).toFixed(2)}</div>
+      <div className="text-slate-300">Cycle yieldd: ${Number(mining.earnedInCycle ?? 0).toFixed(2)}</div>
     </div>
   )
 }
