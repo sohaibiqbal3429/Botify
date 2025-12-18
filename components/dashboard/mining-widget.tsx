@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
 type FeedbackState = { success?: string; error?: string }
@@ -31,13 +31,37 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
   const [feedback, setFeedback] = useState<FeedbackState>({})
   const [canMine, setCanMine] = useState(mining.canMine)
 
-  const [polling, setPolling] = useState<null | { url: string }>(null)
+  const [polling, setPolling] = useState<null | { url: string; idempotencyKey: string }>(null)
   const pollStartedAtRef = useRef(0)
 
   useEffect(() => setCanMine(mining.canMine), [mining.canMine])
 
-  const handleMining = useCallback(async () => {
+  const resetState = useCallback(() => {
     setFeedback({})
+    setPolling(null)
+    setIsLoading(false)
+  }, [])
+
+  const parseJsonSafely = useCallback(async (response: Response) => {
+    const contentType = response.headers.get("content-type") || ""
+    if (!contentType.toLowerCase().includes("application/json")) {
+      return null
+    }
+
+    try {
+      return await response.json()
+    } catch {
+      return null
+    }
+  }, [])
+
+  const statusCopy = useMemo(() => {
+    if (!polling) return ""
+    return polling.idempotencyKey ? ` (ref ${polling.idempotencyKey.slice(0, 8)})` : ""
+  }, [polling])
+
+  const handleMining = useCallback(async () => {
+    resetState()
     setIsLoading(true)
 
     const idempotencyKey = makeIdempotencyKey()
@@ -52,7 +76,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
         cache: "no-store",
       })
 
-      const data = await res.json().catch(() => ({}))
+      const data = (await parseJsonSafely(res)) ?? {}
 
       if (res.status === 200) {
         setFeedback({ success: data?.status?.result?.message ?? "Mining successful!" })
@@ -69,18 +93,20 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
           return
         }
         pollStartedAtRef.current = Date.now()
-        setPolling({ url: statusUrl })
-        setFeedback({ success: "Mining queued..." })
+        setPolling({ url: statusUrl, idempotencyKey })
+        const queueDepth = res.headers.get("X-Queue-Depth")
+        setFeedback({ success: queueDepth ? `Mining queued. Position ~${queueDepth}` : "Mining queued..." })
         return
       }
 
-      setFeedback({ error: data?.error || "Unable to start mining. Please try again." })
+      const fallbackError = data?.error || `Unable to start mining. (${res.status})`
+      setFeedback({ error: fallbackError })
     } catch {
       setFeedback({ error: "Network error. Please try again." })
     } finally {
       setIsLoading(false)
     }
-  }, [onMiningSuccess, router])
+  }, [onMiningSuccess, parseJsonSafely, resetState, router])
 
   useEffect(() => {
     if (!polling) return
@@ -91,11 +117,12 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
         if (Date.now() - pollStartedAtRef.current > POLL_MAX_MS) {
           setFeedback({ error: "Mining timed out. Please try again." })
           setPolling(null)
+          setIsLoading(false)
           return
         }
 
         const res = await fetch(polling.url, { method: "GET", cache: "no-store" })
-        const data = await res.json().catch(() => ({}))
+        const data = (await parseJsonSafely(res)) ?? {}
         if (cancelled) return
 
         if (res.status === 200) {
@@ -109,12 +136,23 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
 
         if (res.status === 202) {
           const queueDepth = res.headers.get("X-Queue-Depth")
-          setFeedback({ success: queueDepth ? `Mining queued. Position ~${queueDepth}` : "Mining processing..." })
+          const phase = data?.status?.status === "processing" ? "Processing" : "Queued"
+          setFeedback({ success: queueDepth ? `${phase}. Position ~${queueDepth}${statusCopy}` : `${phase}...${statusCopy}` })
           return
         }
 
-        setFeedback({ error: data?.error || "Mining failed. Please try again." })
+        if (res.status === 409 || res.status === 503) {
+          const retryAfter = res.headers.get("Retry-After")
+          const suffix = retryAfter ? ` Please retry in ~${retryAfter}s.` : ""
+          setFeedback({ error: `${data?.error ?? "Mining temporarily unavailable."}${suffix}` })
+          setPolling(null)
+          setIsLoading(false)
+          return
+        }
+
+        setFeedback({ error: data?.error || `Mining failed (status ${res.status}).` })
         setPolling(null)
+        setIsLoading(false)
       } catch {
         // ignore transient polling errors
       }
@@ -127,7 +165,7 @@ export function MiningWidget({ mining, onMiningSuccess }: MiningWidgetProps) {
       cancelled = true
       clearInterval(i)
     }
-  }, [polling, onMiningSuccess, router])
+  }, [polling, onMiningSuccess, parseJsonSafely, router, statusCopy])
 
   return (
     <div className="space-y-3">

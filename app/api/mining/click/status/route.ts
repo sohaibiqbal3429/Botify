@@ -15,8 +15,12 @@ export async function GET(request: NextRequest) {
 
   const respond = (response: NextResponse, tags: Record<string, string | number> = {}) => {
     recordRequestLatency("backend", Date.now() - startedAt, { path, status: response.status, ...tags })
+    response.headers.set("Cache-Control", "no-store")
     return response
   }
+
+  const json = (body: any, init?: ResponseInit, tags?: Record<string, string | number>) =>
+    respond(NextResponse.json(body, init), tags)
 
   const rateDecision = await enforceUnifiedRateLimit("backend", rateContext, { path })
   if (!rateDecision.allowed && rateDecision.response) {
@@ -25,14 +29,12 @@ export async function GET(request: NextRequest) {
 
   const user = getUserFromRequest(request)
   if (!user) {
-    return respond(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), { outcome: "unauthorized" })
+    return json({ error: "Unauthorized" }, { status: 401 }, { outcome: "unauthorized" })
   }
 
   const key = new URL(request.url).searchParams.get("key")?.trim()
   if (!key) {
-    return respond(NextResponse.json({ error: "Missing idempotency key" }, { status: 400 }), {
-      outcome: "missing_idempotency",
-    })
+    return json({ error: "Missing idempotency key" }, { status: 400 }, { outcome: "missing_idempotency" })
   }
 
   let status
@@ -43,11 +45,11 @@ export async function GET(request: NextRequest) {
     ])
   } catch (err) {
     console.error("Mining click status timeout/error:", err)
-    return respond(NextResponse.json({ error: "Status check timed out" }, { status: 504 }), { outcome: "timeout" })
+    return json({ error: "Status check timed out" }, { status: 504 }, { outcome: "timeout" })
   }
 
   if (!status || status.userId !== user.userId) {
-    return respond(NextResponse.json({ error: "Status not found" }, { status: 404 }), { outcome: "not_found" })
+    return json({ error: "Status not found" }, { status: 404 }, { outcome: "not_found" })
   }
 
   const headers: Record<string, string> = { "Cache-Control": "no-store" }
@@ -68,14 +70,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return respond(
-    NextResponse.json(
-      { status },
-      {
-        status: statusCode,
-        headers,
-      },
-    ),
-    { outcome: status.status },
-  )
+  return json({ status }, { status: statusCode, headers }, { outcome: status.status })
 }
