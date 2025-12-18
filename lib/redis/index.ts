@@ -7,9 +7,14 @@ function createRedisClient(): Redis {
     throw new Error("REDIS_URL must be configured to use Redis-backed features")
   }
 
+  const connectTimeout = Number(process.env.REDIS_CONNECT_TIMEOUT_MS ?? 2000)
+  const commandTimeout = Number(process.env.REDIS_COMMAND_TIMEOUT_MS ?? 3000)
+
   const options: RedisOptions = {
     enableAutoPipelining: true,
-    maxRetriesPerRequest: null,
+    maxRetriesPerRequest: 1,
+    connectTimeout,
+    commandTimeout,
   }
 
   return new Redis(process.env.REDIS_URL, options)
