@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getUserFromRequest } from "@/lib/auth"
 import { enforceUnifiedRateLimit, getRateLimitContext } from "@/lib/rate-limit/unified"
 import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
-import { getMiningRequestStatus, submitMiningRequest } from "@/lib/services/mining-queue"
+import { getMiningRequestStatus, enqueueMiningRequest } from "@/lib/services/mining-queue"
 
 export const runtime = "nodejs"
 
@@ -61,7 +61,8 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const status = await submitMiningRequest({
+  // ✅ UPDATED: submitMiningRequest -> enqueueMiningRequest (and destructure { status })
+  const { status } = await enqueueMiningRequest({
     userId: user.userId,
     idempotencyKey,
   })
