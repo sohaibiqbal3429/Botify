@@ -35,7 +35,7 @@ const SettingsSchema = new Schema<ISettings>(
       required: false,
     },
     gating: {
-      minDeposit: { type: Number, default: 30 },
+      minDeposit: { type: Number, default: 50 },
       minWithdraw: { type: Number, default: 30 },
       joinNeedsReferral: { type: Boolean, default: true },
       activeMinDeposit: { type: Number, default: 80 },

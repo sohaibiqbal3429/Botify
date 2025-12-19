@@ -6,6 +6,8 @@ import dbConnect from "@/lib/mongodb"
 import Balance from "@/models/Balance"
 import User from "@/models/User"
 
+const MIN_MISSION_DEPOSIT = 50
+
 export async function GET(request: NextRequest) {
   const rateLimitContext = getRateLimitContext(request)
   const decision = await enforceUnifiedRateLimit("backend", rateLimitContext, { path: "/api/missions/daily-profit/status" })
@@ -47,7 +49,10 @@ export async function GET(request: NextRequest) {
 
   const now = new Date()
   const nextEligible = user.dailyProfitNextEligibleAt ?? null
-  const canClaim = !nextEligible || now >= nextEligible
+  const depositTotalRaw = Number(user.depositTotal ?? 0)
+  const depositTotal = Number.isFinite(depositTotalRaw) ? depositTotalRaw : 0
+  const meetsDepositRequirement = depositTotal >= MIN_MISSION_DEPOSIT
+  const canClaim = meetsDepositRequirement && (!nextEligible || now >= nextEligible)
 
   return NextResponse.json({
     canClaim,
@@ -55,5 +60,8 @@ export async function GET(request: NextRequest) {
     currentBalance: Number(balance.current ?? 0),
     lastRewardAmount: user.dailyProfitLastRewardAmount ?? null,
     lastClaimedAt: user.dailyProfitLastClaimedAt ? user.dailyProfitLastClaimedAt.toISOString() : null,
+    depositTotal,
+    minDepositRequired: MIN_MISSION_DEPOSIT,
+    meetsDepositRequirement,
   })
 }

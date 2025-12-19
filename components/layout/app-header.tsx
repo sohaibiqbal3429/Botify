@@ -33,12 +33,44 @@ export function AppHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-[100] border-b border-slate-800/80 bg-slate-950/80 shadow-[0_10px_40px_-24px_rgba(0,0,0,0.85)] backdrop-blur"
+      <header
+        className="sticky top-0 z-[100] border-b border-slate-800/80 bg-slate-950/80 shadow-[0_10px_40px_-24px_rgba(0,0,0,0.85)] backdrop-blur"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-3 md:px-6">
-          {/* ... your existing left side ... */}
+          {/* ✅ MOBILE MENU BUTTON (must be here) */}
+          <button
+            ref={menuButtonRef}
+            type="button"
+            className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-800/70 bg-slate-900 text-slate-100 transition hover:border-cyan-400/60 hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 md:hidden"
+            aria-label="Open menu"
+            aria-expanded={drawerOpen}
+            aria-controls="mobile-drawer"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <Menu className="h-5 w-5" aria-hidden />
+          </button>
 
+          {/* ✅ LOGO */}
+          <Link href="/" className="group flex items-center gap-3" prefetch>
+            <div className="relative flex size-11 items-center justify-center rounded-xl border border-slate-800/70 bg-gradient-to-br from-emerald-400/20 via-cyan-400/10 to-blue-500/10 text-cyan-200 shadow-lg shadow-emerald-500/15 transition group-hover:border-cyan-300/70 group-hover:text-white">
+              <span className="text-lg font-black drop-shadow">5G</span>
+              <span className="absolute -bottom-1 left-1 h-1 w-6 rounded-full bg-emerald-400/70" />
+            </div>
+            <div className="leading-tight">
+              <span className="text-[11px] uppercase tracking-[0.28em] text-emerald-200/80">
+                Signal grid
+              </span>
+              <div className="flex items-center gap-2 text-lg font-semibold text-slate-50">
+                5gbotify
+                <span className="flex items-center gap-1 rounded-md bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase text-emerald-200">
+                  live
+                </span>
+              </div>
+            </div>
+          </Link>
+
+          {/* ✅ DESKTOP NAV */}
           <nav className="hidden flex-1 items-center gap-1 md:flex">
             {PRIMARY_NAV_ITEMS.map((item) => {
               const isLogout = item.href === "/logout"

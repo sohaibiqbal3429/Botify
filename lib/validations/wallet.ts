@@ -10,7 +10,7 @@ function hasAtMostTwoDecimalPlaces(value: number): boolean {
 export const depositSchema = z.object({
   amount: z
     .number()
-    .min(30, "Amount must be at least $30.")
+    .min(50, "Amount must be at least $50.")
     .refine(hasAtMostTwoDecimalPlaces, {
       message: "Amount can have at most 2 decimal places.",
     }),

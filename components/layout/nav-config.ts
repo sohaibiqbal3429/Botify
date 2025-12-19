@@ -26,7 +26,7 @@ export const PRIMARY_NAV_ITEMS: AppNavItem[] = [
   { name: "Top-Up Center", href: "/deposit", icon: ArrowDownLeft },
   { name: "Cash Out", href: "/withdraw", icon: ArrowUpRight },
   // { name: "Missions & Quests", href: "/tasks", icon: BarChart3 },
-  // { name: "Network Crew", href: "/team", icon: Users },
+  { name: "Network Crew", href: "/team", icon: Users },
   // { name: "Asset Catalog", href: "/coins", icon: Coins },
   { name: "Wallet Hub", href: "/e-wallet", icon: CreditCard },
   { name: "Activity Timeline", href: "/transactions", icon: History },

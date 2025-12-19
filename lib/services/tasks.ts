@@ -37,11 +37,11 @@ export class TaskRewardError extends Error {
 const REFERRAL_TARGET = 3
 const FIRST_DEPOSIT_TARGET = 100
 const PROFILE_COMPLETION_TARGET = 2
-const LEVEL1_DEPOSIT_TARGET = 30
+const LEVEL1_DEPOSIT_TARGET = 50
 const LEVEL2_BALANCE_THRESHOLD = 50
 const LEVEL3_PERSONAL_DEPOSIT_TARGET = 150
 const LEVEL3_REFERRAL_DEPOSIT_TARGET = 100
-const LEVEL4_REFERRAL_DEPOSIT_TARGET = 30
+const LEVEL4_REFERRAL_DEPOSIT_TARGET = 50
 const LEVEL4_TEAM_DEPOSIT_TARGET = 300
 
 interface TaskComputationContext {
@@ -50,7 +50,7 @@ interface TaskComputationContext {
   balanceCurrent: number
   profileStepsCompleted: number
   joinedSocialProgress: number
-  referralDepositorsOver30: number
+  referralDepositorsOverMinimum: number
   referralDepositorsOver100: number
   teamDepositVolume: number
 }
@@ -89,7 +89,7 @@ const LEVEL_TASK_DEFINITIONS: Record<number, LevelTaskDefinition[]> = {
     {
       id: "level1-first-deposit",
       title: "Make Your First Deposit",
-      description: "Make your first deposit of 30 USDT to unlock rewards.",
+      description: "Make your first deposit of 50 USDT to unlock rewards.",
       reward: 0.75,
       type: "deposit",
       target: LEVEL1_DEPOSIT_TARGET,
@@ -152,11 +152,11 @@ const LEVEL_TASK_DEFINITIONS: Record<number, LevelTaskDefinition[]> = {
     {
       id: "level4-invite-three-depositors",
       title: "Invite 3 Active Depositors",
-      description: "Invite three users who each deposit 30 USDT or more.",
+      description: "Invite three users who each deposit 50 USDT or more.",
       reward: 0.85,
       type: "referral",
       target: 3,
-      progress: (context) => context.referralDepositorsOver30,
+      progress: (context) => context.referralDepositorsOverMinimum,
     },
     {
       id: "level4-team-deposit",
@@ -349,7 +349,7 @@ export async function getTasksForUser(userId: string): Promise<UserTask[]> {
   const balanceCurrent = Number(balanceDoc?.current ?? 0)
   const referralCount = directReferrals.length
   const referralDeposits = directReferrals.map((item) => Number(item?.depositTotal ?? 0))
-  const referralDepositorsOver30 = referralDeposits.filter((value) => value >= LEVEL4_REFERRAL_DEPOSIT_TARGET).length
+  const referralDepositorsOverMinimum = referralDeposits.filter((value) => value >= LEVEL4_REFERRAL_DEPOSIT_TARGET).length
   const referralDepositorsOver100 = referralDeposits.filter((value) => value >= LEVEL3_REFERRAL_DEPOSIT_TARGET).length
   const teamDepositVolume = referralDeposits.reduce((total, value) => total + value, 0)
 
@@ -363,7 +363,7 @@ export async function getTasksForUser(userId: string): Promise<UserTask[]> {
     balanceCurrent,
     profileStepsCompleted,
     joinedSocialProgress,
-    referralDepositorsOver30,
+    referralDepositorsOverMinimum,
     referralDepositorsOver100,
     teamDepositVolume,
   }

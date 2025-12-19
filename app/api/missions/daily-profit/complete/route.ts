@@ -11,6 +11,7 @@ import User from "@/models/User"
 const COOLDOWN_MS = 24 * 60 * 60 * 1000
 const MISSION_SOURCE = "DAILY_PROFIT_MISSION"
 const REWARD_PCT = 0.025
+const MIN_MISSION_DEPOSIT = 50
 
 class CooldownError extends Error {
   nextEligibleAt: Date
@@ -67,6 +68,15 @@ export async function POST(request: NextRequest) {
   const user = await User.findById(session.userId)
   if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 })
+  }
+
+  const depositTotalRaw = Number(user.depositTotal ?? 0)
+  const depositTotal = Number.isFinite(depositTotalRaw) ? depositTotalRaw : 0
+  if (depositTotal < MIN_MISSION_DEPOSIT) {
+    return NextResponse.json(
+      { error: `Deposit at least $${MIN_MISSION_DEPOSIT} to start this mission.` },
+      { status: 403 },
+    )
   }
 
   const sessionDb = await mongoose.startSession()

@@ -62,8 +62,8 @@ export async function submitDepositAction(_: DepositFormState, formData: FormDat
     return { error: "Enter a valid deposit amount" }
   }
 
-  if (amountValue < 30) {
-    return { error: "Amount must be at least $30." }
+  if (amountValue < 50) {
+    return { error: "Amount must be at least $50." }
   }
 
   if (!network) {

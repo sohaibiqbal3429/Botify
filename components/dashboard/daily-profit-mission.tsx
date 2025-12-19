@@ -13,6 +13,9 @@ interface MissionStatus {
   currentBalance: number
   lastRewardAmount?: number | null
   lastClaimedAt?: string | null
+  depositTotal?: number
+  minDepositRequired?: number
+  meetsDepositRequirement?: boolean
 }
 
 export function DailyProfitMission() {
@@ -32,12 +35,22 @@ export function DailyProfitMission() {
       if (!response.ok) {
         throw new Error(data?.error || "Failed to load mission status")
       }
+
+      const minDepositRequired = Number(data?.minDepositRequired ?? 50)
+      const depositTotal = Number(data?.depositTotal ?? 0)
+
       setStatus({
         canClaim: Boolean(data.canClaim),
         nextEligibleAt: data.nextEligibleAt ?? null,
         currentBalance: Number(data.currentBalance ?? 0),
         lastRewardAmount: data.lastRewardAmount ?? null,
         lastClaimedAt: data.lastClaimedAt ?? null,
+        depositTotal,
+        minDepositRequired,
+        meetsDepositRequirement:
+          typeof data?.meetsDepositRequirement === "boolean"
+            ? Boolean(data.meetsDepositRequirement)
+            : depositTotal >= minDepositRequired,
       })
     } catch (err: any) {
       setError(err?.message || "Failed to load mission status")
@@ -81,6 +94,11 @@ export function DailyProfitMission() {
 
   const handleComplete = async () => {
     if (!status?.canClaim) return
+    if (status.meetsDepositRequirement === false) {
+      const minimum = status.minDepositRequired ?? 50
+      setError(`Deposit at least $${minimum} to start this mission.`)
+      return
+    }
     setSubmitting(true)
     setError(null)
     setSuccess(null)
@@ -108,6 +126,19 @@ export function DailyProfitMission() {
               }
             : null,
         )
+      } else if (response.status === 403) {
+        const message =
+          data?.error ?? `Deposit at least $${status?.minDepositRequired ?? 50} to start this mission.`
+        setError(message)
+        setStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                canClaim: false,
+                meetsDepositRequirement: false,
+              }
+            : prev,
+        )
       } else if (response.status === 429 || response.status === 409) {
         setError(data?.error ?? "Cooldown active. Try again later.")
         setStatus((prev) =>
@@ -131,10 +162,21 @@ export function DailyProfitMission() {
 
   const eligibilityLabel = useMemo(() => {
     if (!status) return ""
+    if (status.meetsDepositRequirement === false) {
+      const minimum = status.minDepositRequired ?? 50
+      const deposited = Number(status.depositTotal ?? 0).toFixed(0)
+      return `Deposit $${minimum} (current $${deposited})`
+    }
+    if (!status) return ""
     if (status.canClaim) return "Available now"
     if (cooldownDisplay) return `Cooldown ${cooldownDisplay}`
     return "Refreshing..."
   }, [cooldownDisplay, status])
+
+  const minDepositRequired = status?.minDepositRequired ?? 50
+  const depositTotal = status?.depositTotal ?? 0
+  const meetsDepositRequirement = status?.meetsDepositRequirement ?? true
+  const actionDisabled = !status?.canClaim || submitting || loading || !meetsDepositRequirement
 
   return (
     <Card className="col-span-full rounded-2xl border border-emerald-500/20 bg-slate-950/70 shadow-lg shadow-emerald-500/10">
@@ -171,12 +213,18 @@ export function DailyProfitMission() {
               <Clock4 className="h-4 w-4 text-slate-400" />
             </div>
             <p className="mt-2 text-2xl font-semibold text-white">
-              {status?.canClaim ? "Available" : cooldownDisplay || "Calculating..."}
+              {!meetsDepositRequirement
+                ? "Deposit required"
+                : status?.canClaim
+                  ? "Available"
+                  : cooldownDisplay || "Calculating..."}
             </p>
             <p className="mt-1 text-xs text-slate-500">
-              {status?.nextEligibleAt
-                ? `Next eligible at ${new Date(status.nextEligibleAt).toLocaleString()}`
-                : "Complete once every 24 hours."}
+              {!meetsDepositRequirement
+                ? `Deposit at least $${minDepositRequired.toFixed(0)} to unlock this mission. Current: $${depositTotal.toFixed(2)}.`
+                : status?.nextEligibleAt
+                  ? `Next eligible at ${new Date(status.nextEligibleAt).toLocaleString()}`
+                  : "Complete once every 24 hours."}
             </p>
           </div>
           <div className="rounded-xl border border-slate-800/70 bg-slate-900/70 p-4">
@@ -199,16 +247,34 @@ export function DailyProfitMission() {
               <p className="text-sm font-semibold text-white">Reward preview</p>
               <p className="text-xs text-slate-400">2.5% of your current wallet balance is added instantly.</p>
             </div>
-            <div className="rounded-md bg-slate-900 px-3 py-2 text-right">
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/80 p-3">
+              <div className="flex items-center justify-between text-sm text-slate-300">
+                <span>Deposit requirement</span>
+                <Badge variant={meetsDepositRequirement ? "default" : "destructive"} className="text-[11px]">
+                  {meetsDepositRequirement ? "Ready" : "Deposit"}
+                </Badge>
+              </div>
+              <p className="mt-2 text-xl font-semibold text-white">
+                ${depositTotal.toFixed(2)} / ${minDepositRequired.toFixed(2)}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Deposit at least ${minDepositRequired.toFixed(0)} to start this mission.
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/80 p-3 text-right">
               <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Current balance</p>
-              <p className="text-xl font-semibold text-emerald-200">
+              <p className="mt-2 text-xl font-semibold text-emerald-200">
                 ${status ? status.currentBalance.toFixed(2) : "0.00"}
               </p>
+              <p className="mt-1 text-xs text-slate-500">Mission reward is 2.5% of this balance.</p>
             </div>
           </div>
           <Button
             onClick={() => void handleComplete()}
-            disabled={!status?.canClaim || submitting || loading}
+            disabled={actionDisabled}
             className="mt-4 h-12 w-full bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 hover:brightness-110 disabled:cursor-not-allowed"
           >
             {submitting ? (
@@ -219,7 +285,7 @@ export function DailyProfitMission() {
             ) : (
               <>
                 <Sparkles className="mr-2 h-5 w-5" />
-                Complete Mission
+                {meetsDepositRequirement ? "Complete Mission" : `Deposit $${minDepositRequired.toFixed(0)} to start`}
               </>
             )}
           </Button>

@@ -19,7 +19,7 @@ import {
   DEPOSIT_SELF_PERCENT_ACTIVE,
 } from "@/lib/constants/bonuses"
 
-const FAKE_DEPOSIT_AMOUNT = 30
+const FAKE_DEPOSIT_AMOUNT = 50
 const TEST_TRANSACTION_NUMBER = "FAKE-DEPOSIT-12345"
 
 const HASH_PATTERNS = [
@@ -145,7 +145,8 @@ export async function submitDeposit(input: DepositSubmissionInput) {
   }
 
   const settings = await Settings.findOne()
-  const minDeposit = settings?.gating?.minDeposit ?? FAKE_DEPOSIT_AMOUNT
+  const configuredMin = Number(settings?.gating?.minDeposit ?? FAKE_DEPOSIT_AMOUNT)
+  const minDeposit = Number.isFinite(configuredMin) ? Math.max(configuredMin, FAKE_DEPOSIT_AMOUNT) : FAKE_DEPOSIT_AMOUNT
 
   if (!isFakeDeposit && parsed.data.amount < minDeposit) {
     throw new DepositSubmissionError(`Amount must be at least $${formatAmount(minDeposit)}.`)

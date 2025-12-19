@@ -16,7 +16,7 @@ const FAQS = [
   {
     title: "3. What is the minimum deposit amount?",
     body:
-      "The minimum deposit is 30 USDT. Deposits below this amount are not accepted. Higher deposits unlock better earning opportunities and bonuses.",
+      "The minimum deposit is 50 USDT. Deposits below this amount are not accepted. Higher deposits unlock better earning opportunities and bonuses.",
   },
   {
     title: "4. How long does it take for deposits to reflect?",
