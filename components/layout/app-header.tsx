@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { FileText, Menu } from "lucide-react"
 
-import QuickActions, { AUTH_HIDDEN_ROUTES } from "@/components/layout/quick-actions"
+import  { AUTH_HIDDEN_ROUTES } from "@/components/layout/quick-actions"
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer"
 import { PRIMARY_NAV_ITEMS } from "@/components/layout/nav-config"
 import { cn } from "@/lib/utils"
@@ -105,7 +105,6 @@ export function AppHeader() {
               <FileText className="h-4 w-4" aria-hidden />
               <span>Knowledge Base</span>
             </Link>
-            <QuickActions variant="desktop" />
           </div>
         </div>
       </header>

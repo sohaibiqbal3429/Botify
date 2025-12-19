@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useIsMobile } from "@/components/ui/use-mobile"
 
 interface Notification {
@@ -223,7 +223,7 @@ export function NotificationBell() {
   if (isMobile) {
     return (
       <Sheet open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>{renderBellButton({ onClick: () => setOpen(true) })}</PopoverTrigger>
+        <SheetTrigger asChild>{renderBellButton()}</SheetTrigger>
         <SheetContent side="right" className="w-full max-w-sm">
           {content}
         </SheetContent>
