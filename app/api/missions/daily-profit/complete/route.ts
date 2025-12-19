@@ -148,14 +148,30 @@ export async function POST(request: NextRequest) {
       meta.idempotencyKey = idempotencyKey
     }
 
-    await Transaction.create({
-      userId: user._id,
-      type: "missionReward",
-      amount: rewardAmount,
-      status: "approved",
-      userEmail: user.email ?? undefined,
-      meta,
-    })
+    try {
+      await Transaction.create({
+        userId: user._id,
+        type: "missionReward",
+        amount: rewardAmount,
+        status: "approved",
+        userEmail: user.email ?? undefined,
+        meta,
+      })
+    } catch (txError: any) {
+      // Gracefully handle idempotent duplicates
+      if (txError?.code === 11000 && idempotencyKey) {
+        const existingTx = await Transaction.findOne({ "meta.idempotencyKey": idempotencyKey }).lean()
+        if (existingTx) {
+          return NextResponse.json({
+            rewardAmount: Number(existingTx.amount ?? 0),
+            newBalance: Number(existingTx.meta?.balanceAfter ?? newBalance),
+            nextEligibleAt: existingTx.meta?.nextEligibleAt ?? nextEligibleAt?.toISOString() ?? null,
+            message: "Rewarded",
+          })
+        }
+      }
+      throw txError
+    }
   } catch (error) {
     if (error instanceof CooldownError) {
       const retrySeconds = Math.max(1, Math.ceil((error.nextEligibleAt.getTime() - now.getTime()) / 1000))
