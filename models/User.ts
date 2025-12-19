@@ -117,9 +117,10 @@ const UserSchema = new Schema<IUser>(
     lastLevelUpAt: { type: Date, default: null },
     qualified: { type: Boolean, default: false },
     qualifiedAt: { type: Date, default: null },
-    dailyProfitNextEligibleAt: { type: Date, default: null },
-    dailyProfitLastClaimedAt: { type: Date, default: null },
-    dailyProfitLastRewardAmount: { type: Number, default: null },
+   dailyProfitNextEligibleAt: { type: Date, default: null },
+dailyProfitLastClaimedAt: { type: Date, default: null },
+dailyProfitLastRewardAmount: { type: Number, default: 0 }, // ✅ FIX
+
     kycStatus: {
       type: String,
       enum: ["unverified", "pending", "verified", "rejected"],
