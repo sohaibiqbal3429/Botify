@@ -5,7 +5,7 @@ import { createModelProxy } from "@/lib/in-memory/model-factory"
 
 export interface IUser extends Document {
   email: string
-  phone?: string // Added phone field for OTP authentication
+  phone?: string
   passwordHash: string
   name: string
   role: "user" | "admin"
@@ -15,8 +15,8 @@ export interface IUser extends Document {
   isActive: boolean
   isBlocked: boolean
   blockedAt?: Date | null
-  emailVerified: boolean // Added email verification status
-  phoneVerified: boolean // Added phone verification status
+  emailVerified: boolean
+  phoneVerified: boolean
   depositTotal: number
   withdrawTotal: number
   roiEarnedTotal: number
@@ -84,6 +84,7 @@ async function assertNoReferralCycle(
       : mongoose.Types.ObjectId.isValid(ancestor.referredBy)
         ? new mongoose.Types.ObjectId(String(ancestor.referredBy))
         : null
+  }
 }
 
 const ADMIN_ALLOWLIST = (process.env.ADMIN_ALLOWLIST ?? "admin@cryptomining.com")
@@ -104,7 +105,7 @@ function adminChangeAllowed(email: string | undefined | null, doc: any, options?
 const UserSchema = new Schema<IUser>(
   {
     email: { type: String, required: true, unique: true, lowercase: true },
-    phone: { type: String, unique: true, sparse: true }, // Added phone field with sparse index
+    phone: { type: String, unique: true, sparse: true },
     passwordHash: { type: String, required: true },
     name: { type: String, required: true },
     role: { type: String, enum: ["user", "admin"], default: "user" },
@@ -119,8 +120,8 @@ const UserSchema = new Schema<IUser>(
     isActive: { type: Boolean, default: false },
     isBlocked: { type: Boolean, default: false, index: true },
     blockedAt: { type: Date, default: null },
-    emailVerified: { type: Boolean, default: false }, // Added email verification tracking
-    phoneVerified: { type: Boolean, default: false }, // Added phone verification tracking
+    emailVerified: { type: Boolean, default: false },
+    phoneVerified: { type: Boolean, default: false },
     depositTotal: { type: Number, default: 0 },
     withdrawTotal: { type: Number, default: 0 },
     roiEarnedTotal: { type: Number, default: 0 },
@@ -132,10 +133,9 @@ const UserSchema = new Schema<IUser>(
     lastLevelUpAt: { type: Date, default: null },
     qualified: { type: Boolean, default: false },
     qualifiedAt: { type: Date, default: null },
-   dailyProfitNextEligibleAt: { type: Date, default: null },
-dailyProfitLastClaimedAt: { type: Date, default: null },
-dailyProfitLastRewardAmount: { type: Number, default: 0 }, // ✅ FIX
-
+    dailyProfitNextEligibleAt: { type: Date, default: null },
+    dailyProfitLastClaimedAt: { type: Date, default: null },
+    dailyProfitLastRewardAmount: { type: Number, default: 0 },
     kycStatus: {
       type: String,
       enum: ["unverified", "pending", "verified", "rejected"],
@@ -156,7 +156,6 @@ dailyProfitLastRewardAmount: { type: Number, default: 0 }, // ✅ FIX
 )
 
 UserSchema.index({ createdAt: -1 })
-UserSchema.index({ email: 1 }, { unique: true })
 UserSchema.index({ status: 1, createdAt: -1 })
 UserSchema.index({ referredBy: 1 })
 
