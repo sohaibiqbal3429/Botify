@@ -84,7 +84,21 @@ async function assertNoReferralCycle(
       : mongoose.Types.ObjectId.isValid(ancestor.referredBy)
         ? new mongoose.Types.ObjectId(String(ancestor.referredBy))
         : null
-  }
+}
+
+const ADMIN_ALLOWLIST = (process.env.ADMIN_ALLOWLIST ?? "admin@cryptomining.com")
+  .split(",")
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean)
+
+function adminOverrideEnabled(doc: any, options?: Record<string, any>) {
+  const opts = options ?? {}
+  return Boolean(doc?.$locals?.allowAdminRole || opts.allowAdminRole || opts.forceAdminRole)
+}
+
+function adminChangeAllowed(email: string | undefined | null, doc: any, options?: Record<string, any>) {
+  const normalizedEmail = (email ?? "").toLowerCase()
+  return adminOverrideEnabled(doc, options) || (normalizedEmail && ADMIN_ALLOWLIST.includes(normalizedEmail))
 }
 
 const UserSchema = new Schema<IUser>(
@@ -169,6 +183,17 @@ UserSchema.pre("save", async function () {
 
     await assertNoReferralCycle(model, userId, sponsorId)
   }
+
+  if (this.isModified("role")) {
+    const saveOpts = (this as any).$__?.saveOptions ?? {}
+    if (this.role === "admin" && !adminChangeAllowed(this.email, this, saveOpts)) {
+      throw new Error("Admin role can only be set via an authorized path")
+    }
+
+    if (this.role !== "admin") {
+      this.role = "user"
+    }
+  }
 })
 
 UserSchema.pre("findOneAndUpdate", async function () {
@@ -185,8 +210,8 @@ UserSchema.pre("findOneAndUpdate", async function () {
 
   const existing = await model
     .findOne(this.getQuery())
-    .select({ _id: 1 })
-    .lean<{ _id: mongoose.Types.ObjectId | string }>()
+    .select({ _id: 1, email: 1 })
+    .lean<{ _id: mongoose.Types.ObjectId | string; email?: string }>()
 
   if (!existing?._id) {
     return
@@ -199,6 +224,25 @@ UserSchema.pre("findOneAndUpdate", async function () {
       : new mongoose.Types.ObjectId(String(referredBy))
 
   await assertNoReferralCycle(model, userId, sponsorId)
+
+  const targetRole =
+    updateDoc.role ??
+    updateDoc.$set?.role ??
+    updateDoc.$setOnInsert?.role
+
+  if (targetRole === "admin") {
+    const opts = (this as any).getOptions?.() ?? {}
+    const nextEmail = updateDoc.email ?? updateDoc.$set?.email ?? updateDoc.$setOnInsert?.email ?? existing.email
+    if (!adminChangeAllowed(nextEmail, { $locals: opts }, opts)) {
+      throw new Error("Admin role can only be set via an authorized path")
+    }
+  } else if (typeof targetRole !== "undefined" && targetRole !== "user") {
+    const nextUpdate = { ...updateDoc }
+    if ("role" in nextUpdate) nextUpdate.role = "user"
+    if (nextUpdate.$set?.role) nextUpdate.$set.role = "user"
+    if (nextUpdate.$setOnInsert?.role) nextUpdate.$setOnInsert.role = "user"
+    this.setUpdate(nextUpdate)
+  }
 })
 
 export default createModelProxy<IUser>("User", UserSchema)

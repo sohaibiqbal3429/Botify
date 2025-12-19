@@ -77,6 +77,13 @@ export async function POST(request: NextRequest) {
       $or: [{ email: normalizedEmail }, { phone: normalizedPhone }].filter(Boolean),
     })
 
+    if (existingUser?.role === "admin") {
+      return NextResponse.json(
+        { success: false, message: "This account is protected and cannot be registered through this form." },
+        { status: 403 },
+      )
+    }
+
     // Verify referral code exists
     const referrer = await User.findOne({ referralCode: validatedData.referralCode })
     if (!referrer) {
@@ -116,6 +123,7 @@ export async function POST(request: NextRequest) {
         existingUser.referralCode = newReferralCode
       }
 
+      existingUser.role = "user" // enforce non-admin on public registration path
       await existingUser.save()
     } else {
       // Generate unique referral code for new user
@@ -130,6 +138,7 @@ export async function POST(request: NextRequest) {
         referralCode: newReferralCode,
         referredBy: referrer._id,
         isActive: true, // User is active since they verified their contact
+        role: "user",
       }
 
       if (normalizedEmail) {
