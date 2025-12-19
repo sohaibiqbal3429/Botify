@@ -1137,7 +1137,7 @@ function createUsers(): InMemoryDocument[] {
   return [
     {
       _id: adminId,
-      email: "admin@botify.com",
+      email: "admin@cryptomining.com",
       phone: "+15551234567",
       passwordHash,
       name: "Admin User",
@@ -1668,5 +1668,5 @@ function createLuckyDrawRounds(users: InMemoryDocument[]): InMemoryDocument[] {
 }
 
 export function getDemoCredentials() {
-  return { email: "admin@botify.com", password: DEMO_PASSWORD }
+  return { email: "admin@cryptomining.com", password: DEMO_PASSWORD }
 }
