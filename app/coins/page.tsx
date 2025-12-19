@@ -182,7 +182,7 @@ export default function CoinsPage() {
   const heroDescription =
     phase === "live"
       ? "Trading and liquidity programs are open. Secure your allocations and compound from day one."
-      : "Discover upcoming tokens, presales, and exchange listings. Join the waitlist for day one access and instant alerts.
+      : "Discover upcoming tokens, presales, and exchange listings. Join the waitlist for day one access and instant alerts."
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
@@ -291,7 +291,7 @@ export default function CoinsPage() {
                     </div>
                   ))}
                   <div className="rounded-xl border border-muted/40 bg-background/60 p-4 transition-colors duration-[var(--t-med)] ease-[var(--ease)]">
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Mining Economics</h3>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Program Economics</h3>
                     <div className="mt-4 space-y-4">
                       {ECONOMICS_RULES.map((rule) => (
                         <div

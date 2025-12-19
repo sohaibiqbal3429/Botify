@@ -98,20 +98,21 @@ export function NotificationBell() {
   const getNotificationIcon = (kind: string) => {
     switch (kind) {
       case "referral-joined":
-        return "👥"
+        return "REF"
       case "deposit-approved":
-        return "💰"
+        return "DEP"
       case "withdraw-approved":
-        return "💸"
+        return "WDR"
       case "withdraw-requested":
-        return "📝"
+        return "REQ"
       case "withdraw-cancelled":
-        return "↩️"
+        return "CNX"
       case "level-up":
-        return "🎉"
+        return "LVL"
       case "cap-reached":
-        return "⚠️"      default:
-        return "📢"
+        return "CAP"
+      default:
+        return "NOTE"
     }
   }
 
@@ -150,144 +151,91 @@ export function NotificationBell() {
     </Button>
   )
 
-  const Header = ({ onClose }: { onClose: () => void }) => (
-    <div className="flex items-start justify-between gap-3 pb-2">
-      <div className="space-y-0.5">
-        <p className="text-sm font-semibold text-muted-foreground dark:text-secondary-dark">Notifications</p>
-        <p className="text-xs text-muted-foreground/80 dark:text-muted-dark">Quick updates, kept compact.</p>
-      </div>
-      <div className="flex items-center gap-2">
-        {unreadCount > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={markAllAsRead}
-            disabled={loading}
-            className="rounded-full border border-border/60 bg-white/60 text-xs font-semibold shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/10"
-          >
-            <CheckCheck className="mr-1.5 h-4 w-4" />
-            Mark all
-          </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          className="rounded-full border border-border/60 bg-white/60 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/10"
-          aria-label="Close notifications"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
-  )
-
-  const NotificationItems = ({ onItemSelect }: { onItemSelect?: () => void }) => (
+  const NotificationsList = () => (
     <div className="space-y-3">
       {notifications.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border/70 bg-card/60 p-6 text-center text-sm text-muted-foreground dark:border-white/10 dark:bg-white/5 dark:text-secondary-dark">
-          No notifications yet
-        </div>
+        <p className="text-sm text-muted-foreground">You’re all caught up.</p>
       ) : (
         notifications.map((notification) => (
-          <button
+          <div
             key={notification._id}
-            type="button"
-            className={`group relative w-full overflow-hidden rounded-2xl border p-3 text-left backdrop-blur transition hover:-translate-y-[1px] hover:shadow-xl ${
-              !notification.read
-                ? "border-primary/30 bg-white/80 shadow-[0_18px_40px_-22px_rgba(99,102,241,0.65)] dark:border-primary/40 dark:bg-white/10"
-                : "border-border/60 bg-white/60 shadow-sm dark:border-white/5 dark:bg-white/5"
-            }`}
-            onClick={() => {
-              if (!notification.read) {
-                void markAsRead(notification._id)
-              }
-              onItemSelect?.()
-            }}
+            className="relative flex items-start gap-3 rounded-lg border border-border/60 bg-card/80 p-3 shadow-sm"
           >
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-accent/10 to-cyan-400/10 opacity-0 transition group-hover:opacity-100" />
-            <div className="relative flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-lg">
-                {getNotificationIcon(notification.kind)}
-              </div>
-              <div className="min-w-0 flex-1 space-y-1">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="line-clamp-1 text-sm font-semibold text-foreground dark:text-primary-dark">{notification.title}</p>
-                  <span className="text-[11px] text-muted-foreground dark:text-muted-dark whitespace-nowrap">{formatTimeAgo(notification.createdAt)}</span>
-                </div>
-                <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground dark:text-secondary-dark">
-                  {notification.body}
-                </p>
-                <div className="flex items-center justify-between gap-2 pt-1 text-[11px] text-muted-foreground dark:text-muted-dark">
-                  <div className="flex items-center gap-1">
-                    {!notification.read && (
-                      <Badge
-                        variant="secondary"
-                        className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary dark:bg-white/15 dark:text-inverse-dark"
-                      >
-                        New
-                      </Badge>
-                    )}
-                    {notification.kind ? (
-                      <Badge
-                        variant="outline"
-                        className="rounded-full border-border/70 bg-background/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground dark:border-white/10 dark:bg-white/0 dark:text-secondary-dark"
-                      >
-                        {notification.kind.replace("-", " ")}
-                      </Badge>
-                    ) : null}
-                  </div>
-                  {notification.body.length > 120 && (
-                    <span className="font-semibold text-primary transition hover:text-primary/80">Learn more</span>
-                  )}
-                </div>
-              </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+              {getNotificationIcon(notification.kind)}
             </div>
-          </button>
+            <div className="flex-1 space-y-1">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{notification.title}</p>
+                  <p className="text-xs text-muted-foreground">{notification.body}</p>
+                </div>
+                <Badge variant="outline" className="text-[10px] font-semibold">
+                  {formatTimeAgo(notification.createdAt)}
+                </Badge>
+              </div>
+              {!notification.read && (
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => void markAsRead(notification._id)}>
+                  <CheckCheck className="mr-1 h-3.5 w-3.5" />
+                  Mark read
+                </Button>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full"
+              onClick={() => void markAsRead(notification._id)}
+              aria-label="Dismiss notification"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         ))
       )}
     </div>
   )
 
-  const panelContent = (
-    <div className="space-y-3">
-      <Header onClose={() => setOpen(false)} />
-      <ScrollArea className={`${isMobile ? "max-h-[55vh]" : "max-h-[45vh]"} pr-1`}>
-        <NotificationItems onItemSelect={() => isMobile && setOpen(false)} />
+  const content = (
+    <div className="w-[360px] max-w-[80vw] space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <p className="text-sm font-semibold text-muted-foreground">Notifications</p>
+          <p className="text-xs text-muted-foreground/80">Quick updates, kept compact.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-[10px]">
+            {unreadCount} new
+          </Badge>
+          <Button variant="ghost" size="sm" onClick={() => void markAllAsRead()} disabled={loading || unreadCount === 0}>
+            <CheckCheck className="mr-2 h-4 w-4" />
+            Mark all
+          </Button>
+        </div>
+      </div>
+      <ScrollArea className="max-h-[360px] pr-3">
+        <NotificationsList />
       </ScrollArea>
     </div>
   )
 
   if (isMobile) {
     return (
-      <>
-        {renderBellButton({ onClick: () => setOpen(true) })}
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent side="bottom" className="px-4 pb-5 pt-3 sm:px-6">
-            <div className="mx-auto mb-3 mt-1 h-1.5 w-14 rounded-full bg-white/40" />
-            <Header onClose={() => setOpen(false)} />
-            <ScrollArea className="max-h-[60vh] pr-1 pt-2">
-              <NotificationItems onItemSelect={() => setOpen(false)} />
-            </ScrollArea>
-          </SheetContent>
-        </Sheet>
-      </>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>{renderBellButton({ onClick: () => setOpen(true) })}</PopoverTrigger>
+        <SheetContent side="right" className="w-full max-w-sm">
+          {content}
+        </SheetContent>
+      </Sheet>
     )
   }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{renderBellButton()}</PopoverTrigger>
-      <PopoverContent
-        side="bottom"
-        align="end"
-        sideOffset={10}
-        alignOffset={-4}
-        className="notification-panel rounded-3xl border border-white/40 bg-white/80 p-4 text-foreground shadow-[0_30px_55px_-30px_rgba(59,130,246,0.55)] backdrop-blur-2xl supports-[backdrop-filter]:bg-white/70 dark:border-white/10 dark:bg-slate-950/70"
-      >
-        {panelContent}
+      <PopoverContent align="end" className="w-[380px] p-4">
+        {content}
       </PopoverContent>
     </Popover>
   )
 }
-

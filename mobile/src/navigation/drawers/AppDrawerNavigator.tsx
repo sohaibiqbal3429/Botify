@@ -3,7 +3,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItem } from '@react-navigation/drawer';
 import { View, Text, StyleSheet } from 'react-native';
 import HomeScreen from '../../screens/HomeScreen';
-import MiningScreen from '../../screens/MiningScreen';
 import DepositScreen from '../../screens/DepositScreen';
 import WithdrawScreen from '../../screens/WithdrawScreen';
 import TaskScreen from '../../screens/TaskScreen';
@@ -22,7 +21,6 @@ import { Icon } from '../../components/Icon';
 
 export type DrawerParamList = {
   Home: undefined;
-  Mining: undefined;
   Deposit: undefined;
   Withdraw: undefined;
   Tasks: undefined;
@@ -45,7 +43,6 @@ const drawerItems: {
   adminOnly?: boolean;
 }[] = [
   { name: 'Home', label: 'Home', icon: 'home-outline' },
-  { name: 'Mining', label: 'Mining', icon: 'hardware-chip-outline' },
   { name: 'Deposit', label: 'Deposit', icon: 'wallet-outline' },
   { name: 'Withdraw', label: 'Withdraw', icon: 'arrow-down-circle-outline' },
   { name: 'Tasks', label: 'Task', icon: 'checkbox-outline' },
@@ -102,7 +99,6 @@ const AppDrawerNavigator = () => {
       screenOptions={{ headerShown: true }}
     >
       <Drawer.Screen name="Home" component={HomeScreen} />
-      <Drawer.Screen name="Mining" component={MiningScreen} />
       <Drawer.Screen name="Deposit" component={DepositScreen} />
       <Drawer.Screen name="Withdraw" component={WithdrawScreen} />
       <Drawer.Screen name="Tasks" component={TaskScreen} />
