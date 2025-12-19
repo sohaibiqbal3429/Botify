@@ -1670,3 +1670,4 @@ function createLuckyDrawRounds(users: InMemoryDocument[]): InMemoryDocument[] {
 export function getDemoCredentials() {
   return { email: "admin@cryptomining.com", password: DEMO_PASSWORD }
 }
+

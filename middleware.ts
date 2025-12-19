@@ -62,12 +62,14 @@ export async function middleware(request: NextRequest) {
               "/deposit",
               "/withdraw",
               "/transactions",
+              "/missions",
             ]
             const guardedApis = [
               "/api/wallet",
               "/api/deposit",
               "/api/withdraw",
               "/api/dashboard",
+              "/api/missions",
             ]
 
             const isBlockedPage = guardedPages.some((prefix) => pathname.startsWith(prefix))

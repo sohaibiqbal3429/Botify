@@ -1,253 +1,112 @@
-"use client"
-
-import { useEffect, useState } from "react"
-import { Sidebar } from "@/components/layout/sidebar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
+import { Suspense } from "react"
 
-export default function TermsPage() {
-  const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+const FAQS = [
+  {
+    title: "1. What is 5gBotify?",
+    body:
+      "5gBotify is a digital rewards platform that allows users to earn daily profits through secure and automated payout cycles. It is designed for both beginners and professionals to grow their digital income safely.",
+  },
+  {
+    title: "2. How do I start earning on 5gBotify?",
+    body:
+      "Create an account, verify your email, and choose a rewards plan. Once you make a deposit, your rewards process will begin automatically and you will start earning daily rewards.",
+  },
+  {
+    title: "3. What is the minimum deposit amount?",
+    body:
+      "The minimum deposit is 30 USDT. Deposits below this amount are not accepted. Higher deposits unlock better earning opportunities and bonuses.",
+  },
+  {
+    title: "4. How long does it take for deposits to reflect?",
+    body: "Deposits usually reflect within 1–5 minutes after network confirmation. If there is a delay, contact support.",
+  },
+  {
+    title: "5. Are rewards guaranteed every day?",
+    body:
+      "Rewards depend on platform policies and performance. Daily payouts may vary. You can track rewards in your dashboard and transaction history.",
+  },
+  {
+    title: "6. Is there a fee for withdrawals?",
+    body:
+      "Standard network fees apply. Review the fee estimate shown in the withdrawal form before submitting your request.",
+  },
+  {
+    title: "7. What happens if I miss a day?",
+    body:
+      "Missing a day simply means you will not receive that day’s reward. You can continue earning by returning to the platform and completing the available missions.",
+  },
+  {
+    title: "8. Is there a referral program?",
+    body:
+      "Yes. Share your referral code to earn additional rewards when your invited friends participate on the platform.",
+  },
+  {
+    title: "9. Can I upgrade my rewards plan later?",
+    body: "Yes. Upgrading increases your daily profit percentage and overall rewards performance.",
+  },
+  {
+    title: "10. Is my data secure?",
+    body:
+      "We use encryption, secure authentication, and routine audits to protect your data. Always keep your credentials private and enable available security options.",
+  },
+  {
+    title: "11. Which currencies and networks are supported?",
+    body:
+      "5gBotify supports USDT (BEP-20) and other popular wallets. You can deposit and withdraw funds using these methods easily.",
+  },
+  {
+    title: "12. How do I contact support?",
+    body:
+      'If you encounter any issues, contact the 5gBotify support team through the "Help" or "Contact Us" section in your dashboard for quick assistance.',
+  },
+]
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const userRes = await fetch("/api/auth/me")
-        if (userRes.ok) {
-          const userData = await userRes.json()
-          setUser(userData.user)
-        }
-      } catch (error) {
-        console.error("Failed to fetch data:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    )
-  }
-
+function TermsContent() {
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar user={user} />
+    <div className="flex min-h-screen bg-background">
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10">
+        <header className="space-y-2 text-center">
+          <p className="text-xs uppercase tracking-[0.28em] text-emerald-500">Knowledge base</p>
+          <h1 className="text-3xl font-semibold">Terms & FAQs</h1>
+          <p className="text-sm text-muted-foreground">
+            Learn how rewards, deposits, withdrawals, and referrals work across the 5gBotify platform.
+          </p>
+        </header>
 
-      <main className="flex-1 overflow-auto md:ml-64">
-        <div className="p-6 lg:p-10">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-balance">Terms of Service / FAQ</h1>
-            <p className="text-muted-foreground">Last updated: January 15, 2025</p>
-          </div>
-
-          <div className="space-y-6 lg:space-y-8">
-            {/* 1 */}
-            <Card className="w-full">
+        <div className="grid gap-4">
+          {FAQS.map((faq) => (
+            <Card key={faq.title} className="border-slate-200 bg-card shadow-sm dark:border-slate-800">
               <CardHeader>
-                <CardTitle>1. What is 5gBotify?</CardTitle>
+                <CardTitle className="text-base font-semibold">{faq.title}</CardTitle>
               </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>
-                  5gBotify is a digital mining platform that allows users to earn daily profits
-                  through secure and automated 5gBotify mining. It’s designed for both beginners and
-                  professionals to grow their digital income safely.
-                </p>
-              </CardContent>
+              <CardContent className="text-sm text-muted-foreground">{faq.body}</CardContent>
             </Card>
+          ))}
+        </div>
 
-            {/* 2 */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>2. How do I start mining on 5gBotify?</CardTitle>
-              </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>
-                  Simply create an account, verify your email, and choose a mining plan. Once you
-                  make a deposit, your mining process will automatically begin, and you’ll start
-                  earning daily rewards.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* 3 */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>3. What is the minimum deposit amount?</CardTitle>
-              </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>
-                  The minimum deposit is <strong>30 USDT</strong>. Deposits below this amount are
-                  not accepted. Higher deposits unlock better earning opportunities and bonuses.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* 4 */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>4. How much profit can I earn daily?</CardTitle>
-              </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>
-                  Your daily profit depends on your selected plan. Basic users can earn between{" "}
-                  <strong>1% – 1.5%</strong> daily, while higher-level plans offer increased profit
-                  rates.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* 5 */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>5. How does the referral bonus system work?</CardTitle>
-              </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>
-                  When you refer someone who deposits <strong>30 USDT</strong> or more, you receive
-                  a <strong>15% bonus</strong> instantly as a depositor reward.
-                </p>
-                <p className="mt-2">
-                  <em>Example:</em> If your referral deposits <strong>100 USDT</strong>, you earn{" "}
-                  <strong>15 USDT</strong> directly into your account.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* 6 */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>6. Is there any joining fee?</CardTitle>
-              </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>
-                  No. Joining 5gBotify is completely free. You only need to deposit funds to
-                  start your mining plan.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* 7 */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>7. How can I withdraw my earnings?</CardTitle>
-              </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>
-                  Withdrawals can be made directly from your dashboard once you reach the minimum
-                  withdrawal limit. All withdrawals are processed securely, usually within{" "}
-                  <strong>24 hours</strong>.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* 8 */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>8. What payment methods are supported?</CardTitle>
-              </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>
-                  5gBotify supports <strong>USDT (BEP-20)</strong> and other popular 5gBotify
-                  wallets. You can deposit and withdraw funds using these methods easily.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* 9 */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>9. Can I upgrade my mining plan later?</CardTitle>
-              </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>
-                  Yes, you can upgrade your mining plan anytime. Upgrading increases your daily
-                  profit percentage and overall mining performance.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* 10 */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>10. What should I do if I face any issue or delay?</CardTitle>
-              </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>
-                  If you encounter any problem or delay, please contact the 5gBotify support
-                  team through the <strong>“Help”</strong> or <strong>“Contact Us”</strong> section
-                  in your dashboard for quick assistance.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* 11 New Withdrawal Policy */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>11. Updated Withdrawal & Account Policy</CardTitle>
-              </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>
-                  From tonight after <strong>12 AM</strong>, only{" "}
-                  <strong>profit withdrawals</strong> will be allowed, with a minimum of{" "}
-                  <strong>30 USDT</strong>. <strong>Commission withdrawals</strong> will also be
-                  allowed.
-                </p>
-                <p className="mt-2">
-                  Besides this, we need some time because we are going to{" "}
-                  <strong>
-                    block the accounts of those users who have created more than one account
-                  </strong>
-                  . These users have forced us to impose strict policies to protect the system and
-                  maintain fairness.
-                </p>
-                <p className="mt-3">
-                  The final announcement of the new policy has been made. From{" "}
-                  <strong>12 AM</strong>, profit withdrawals will start, and the{" "}
-                  <strong>approval time will be 24 to 48 hours</strong>.
-                </p>
-                <p className="mt-2">
-                  If a withdrawal is <strong>rejected twice</strong> and the member does not
-                  resolve the stated reason, then on the <strong>third attempt</strong> the{" "}
-                  <strong>account will be blocked</strong>.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* 12 Contact (email + highlighted Telegram) */}
-            <Card>
-              <CardHeader>
-                <CardTitle>12. Contact Information</CardTitle>
-              </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
-                <p>For questions about these terms or the platform, please contact us at:</p>
-                <p>
-                  <strong>Email:</strong>{" "}
-                  <a href="mailto:5gBotify@gmail.com">5gBotify@gmail.com</a>
-                  <br />
-                  <strong>Support:</strong> Available 24/7 through the platform
-                  <br />
-                  {/* 🔥 Highlighted Telegram ID */}
-                  <strong>Telegram:</strong>{" "}
-                  <a
-                    href="https://t.me/GeorgeLiu87"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold text-primary"
-                  >
-                    @GeorgeLiu87
-                  </a>
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+        <div className="rounded-2xl border border-slate-200 bg-card/60 p-6 shadow-sm dark:border-slate-800">
+          <h2 className="text-lg font-semibold">Need more help?</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Email: support@5gbotify.com — our team is available to assist with account, payout, and policy questions.
+          </p>
         </div>
       </main>
     </div>
+  )
+}
+
+export default function TermsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <TermsContent />
+    </Suspense>
   )
 }

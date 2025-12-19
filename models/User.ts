@@ -28,6 +28,9 @@ export interface IUser extends Document {
   qualified: boolean
   qualifiedAt?: Date | null
   kycStatus: "unverified" | "pending" | "verified" | "rejected"
+  dailyProfitNextEligibleAt?: Date | null
+  dailyProfitLastClaimedAt?: Date | null
+  dailyProfitLastRewardAmount?: number | null
   groups: {
     A: mongoose.Types.ObjectId[]
     B: mongoose.Types.ObjectId[]
@@ -114,6 +117,9 @@ const UserSchema = new Schema<IUser>(
     lastLevelUpAt: { type: Date, default: null },
     qualified: { type: Boolean, default: false },
     qualifiedAt: { type: Date, default: null },
+    dailyProfitNextEligibleAt: { type: Date, default: null },
+    dailyProfitLastClaimedAt: { type: Date, default: null },
+    dailyProfitLastRewardAmount: { type: Number, default: null },
     kycStatus: {
       type: String,
       enum: ["unverified", "pending", "verified", "rejected"],

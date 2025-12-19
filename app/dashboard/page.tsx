@@ -11,6 +11,7 @@ import { RateLimitTelemetryCard } from "@/components/dashboard/rate-limit-teleme
 import { HalvingChart } from "@/components/dashboard/halving-chart"
 import { LuckyDrawCard } from "@/components/dashboard/lucky-draw-card"
 import { InviteAndEarnPanel } from "@/components/dashboard/invite-and-earn-panel"
+import { DailyProfitMission } from "@/components/dashboard/daily-profit-mission"
 
 interface DashboardData {
   kpis: {
@@ -57,10 +58,7 @@ export default function DashboardPage() {
         fetch("/api/auth/me", { credentials: "include" }),
       ])
 
-      const [dashboardPayload, userPayload] = await Promise.all([
-        parseResponse(dashboardRes),
-        parseResponse(userRes),
-      ])
+      const [dashboardPayload, userPayload] = await Promise.all([parseResponse(dashboardRes), parseResponse(userRes)])
 
       if (dashboardRes.status === 401 || userRes.status === 401) {
         router.replace("/auth/login")
@@ -80,8 +78,7 @@ export default function DashboardPage() {
       }
 
       const dashError =
-        (dashboardPayload.json && typeof dashboardPayload.json === "object" &&
-          (dashboardPayload.json as any).error) ||
+        (dashboardPayload.json && typeof dashboardPayload.json === "object" && (dashboardPayload.json as any).error) ||
         dashboardPayload.rawText
       const friendlyMessage = typeof dashError === "string" && dashError.trim() ? dashError.trim() : null
 
@@ -117,9 +114,7 @@ export default function DashboardPage() {
             <span className="text-2xl">!</span>
           </div>
           <p className="font-medium text-foreground">Failed to load dashboard data</p>
-          <p className="text-muted-foreground">
-            {errorMessage || "Please refresh the page or try again later"}
-          </p>
+          <p className="text-muted-foreground">{errorMessage || "Please refresh the page or try again later"}</p>
         </div>
       </div>
     )
@@ -148,9 +143,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-emerald-200">Ops status</p>
-                  <p className="text-sm text-slate-300">Backend parity with 
-                    
-                    , new skin for 5gbotify.</p>
+                  <p className="text-sm text-slate-300">Backend parity confirmed with a refreshed 5gbotify skin.</p>
                 </div>
                 <span className="rounded-md bg-emerald-500/20 px-3 py-1 text-[11px] font-semibold uppercase text-emerald-100">
                   synced
@@ -176,60 +169,58 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[2fr,1.25fr]">
-            <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-lg shadow-emerald-500/10">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.25em] text-emerald-200">Account snapshot</p>
-                  <h2 className="text-xl font-semibold text-white">Engagement overview</h2>
-                  <p className="text-sm text-slate-400">
-                    Check your balance, activity, and referral momentum at a glance.
-                  </p>
-                </div>
-                <Link
-                  href="/transactions"
-                  className="rounded-md border border-emerald-500/30 px-3 py-1 text-xs font-semibold text-emerald-100 hover:border-emerald-400/70"
-                >
-                  View activity
-                </Link>
-              </div>
-              <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="space-y-1 rounded-lg border border-slate-800/70 bg-slate-950/70 p-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Current balance</p>
-                  <p className="text-2xl font-semibold text-white">${data.kpis.currentBalance.toFixed(2)}</p>
-                  <p className="text-xs text-slate-500">Liquid funds available today</p>
-                </div>
-                <div className="space-y-1 rounded-lg border border-slate-800/70 bg-slate-950/70 p-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Team reward pool</p>
-                  <p className="text-2xl font-semibold text-white">${data.kpis.teamReward.toFixed(2)}</p>
-                  <p className="text-xs text-slate-500">Available to claim</p>
-                </div>
-                <div className="space-y-1 rounded-lg border border-slate-800/70 bg-slate-950/70 p-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Direct members</p>
-                  <p className="text-2xl font-semibold text-white">{data.kpis.activeMembers}</p>
-                  <p className="text-xs text-slate-500">Active referrals in your crew</p>
-                </div>
-                <div className="space-y-1 rounded-lg border border-slate-800/70 bg-slate-950/70 p-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Total balance</p>
-                  <p className="text-2xl font-semibold text-white">${data.kpis.totalBalance.toFixed(2)}</p>
-                  <p className="text-xs text-slate-500">Includes earnings and locked amounts</p>
-                </div>
-                <div className="space-y-1 rounded-lg border border-slate-800/70 bg-slate-950/70 p-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Team reward today</p>
-                  <p className="text-2xl font-semibold text-white">
-                    ${Number(data.kpis.teamRewardToday ?? 0).toFixed(2)}
-                  </p>
-                  <p className="text-xs text-slate-500">Past 24h</p>
-                </div>
-                <div className="space-y-1 rounded-lg border border-slate-800/70 bg-slate-950/70 p-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-400">Deposits</p>
-                  <p className="text-2xl font-semibold text-white">${data.user.depositTotal.toFixed(2)}</p>
-                  <p className="text-xs text-slate-500">Lifetime deposits</p>
-                </div>
-              </div>
-            </div>
+            <DailyProfitMission />
             <div className="grid gap-6">
               <HalvingChart />
               <RateLimitTelemetryCard />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-lg shadow-emerald-500/10">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.25em] text-emerald-200">Account snapshot</p>
+                <h2 className="text-xl font-semibold text-white">Engagement overview</h2>
+                <p className="text-sm text-slate-400">Check your balance, activity, and referral momentum at a glance.</p>
+              </div>
+              <Link
+                href="/transactions"
+                className="rounded-md border border-emerald-500/30 px-3 py-1 text-xs font-semibold text-emerald-100 hover:border-emerald-400/70"
+              >
+                View activity
+              </Link>
+            </div>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-1 rounded-lg border border-slate-800/70 bg-slate-950/70 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-400">Current balance</p>
+                <p className="text-2xl font-semibold text-white">${data.kpis.currentBalance.toFixed(2)}</p>
+                <p className="text-xs text-slate-500">Liquid funds available today</p>
+              </div>
+              <div className="space-y-1 rounded-lg border border-slate-800/70 bg-slate-950/70 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-400">Team reward pool</p>
+                <p className="text-2xl font-semibold text-white">${data.kpis.teamReward.toFixed(2)}</p>
+                <p className="text-xs text-slate-500">Available to claim</p>
+              </div>
+              <div className="space-y-1 rounded-lg border border-slate-800/70 bg-slate-950/70 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-400">Direct members</p>
+                <p className="text-2xl font-semibold text-white">{data.kpis.activeMembers}</p>
+                <p className="text-xs text-slate-500">Active referrals in your crew</p>
+              </div>
+              <div className="space-y-1 rounded-lg border border-slate-800/70 bg-slate-950/70 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-400">Total balance</p>
+                <p className="text-2xl font-semibold text-white">${data.kpis.totalBalance.toFixed(2)}</p>
+                <p className="text-xs text-slate-500">Includes earnings and locked amounts</p>
+              </div>
+              <div className="space-y-1 rounded-lg border border-slate-800/70 bg-slate-950/70 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-400">Team reward today</p>
+                <p className="text-2xl font-semibold text-white">${Number(data.kpis.teamRewardToday ?? 0).toFixed(2)}</p>
+                <p className="text-xs text-slate-500">Past 24h</p>
+              </div>
+              <div className="space-y-1 rounded-lg border border-slate-800/70 bg-slate-950/70 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-400">Deposits</p>
+                <p className="text-2xl font-semibold text-white">${data.user.depositTotal.toFixed(2)}</p>
+                <p className="text-xs text-slate-500">Lifetime deposits</p>
+              </div>
             </div>
           </div>
 

@@ -14,6 +14,7 @@ export interface ITransaction extends Document {
     | "bonus"
     | "adjust"
     | "teamReward"
+    | "missionReward"
   amount: number
   meta: any
   userEmail?: string
@@ -38,6 +39,7 @@ const TransactionSchema = new Schema<ITransaction>(
         "bonus",
         "adjust",
         "teamReward",
+        "missionReward",
       ],
       required: true,
     },
