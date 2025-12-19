@@ -77,50 +77,81 @@ export async function POST(request: NextRequest) {
       $or: [{ email: normalizedEmail }, { phone: normalizedPhone }].filter(Boolean),
     })
 
-    if (existingUser) {
-      return NextResponse.json({ success: false, message: "User already exists with this email or phone" }, { status: 400 })
-    }
-
     // Verify referral code exists
     const referrer = await User.findOne({ referralCode: validatedData.referralCode })
     if (!referrer) {
       return NextResponse.json({ success: false, message: "Invalid referral code" }, { status: 400 })
     }
 
-    // Generate unique referral code for new user
-    let newReferralCode: string
-    do {
-      newReferralCode = generateReferralCode()
-    } while (await User.findOne({ referralCode: newReferralCode }))
-
     // Hash password
     const passwordHash = await hashPassword(validatedData.password)
 
-    // Create user
-    const userData: any = {
-      name: validatedData.name,
-      passwordHash,
-      referralCode: newReferralCode,
-      referredBy: referrer._id,
-      isActive: true, // User is active since they verified their contact
+    let user = existingUser
+
+    if (existingUser) {
+      // Allow an existing user to re-verify and reset credentials via OTP
+      existingUser.name = validatedData.name
+      existingUser.passwordHash = passwordHash
+      existingUser.isActive = true
+
+      if (normalizedEmail) {
+        existingUser.email = normalizedEmail
+        existingUser.emailVerified = true
+      }
+
+      if (normalizedPhone) {
+        existingUser.phone = formatPhoneNumber(normalizedPhone)
+        existingUser.phoneVerified = true
+      }
+
+      if (!existingUser.referredBy) {
+        existingUser.referredBy = referrer._id
+      }
+
+      if (!existingUser.referralCode) {
+        let newReferralCode: string
+        do {
+          newReferralCode = generateReferralCode()
+        } while (await User.findOne({ referralCode: newReferralCode }))
+        existingUser.referralCode = newReferralCode
+      }
+
+      await existingUser.save()
+    } else {
+      // Generate unique referral code for new user
+      let newReferralCode: string
+      do {
+        newReferralCode = generateReferralCode()
+      } while (await User.findOne({ referralCode: newReferralCode }))
+
+      const userData: any = {
+        name: validatedData.name,
+        passwordHash,
+        referralCode: newReferralCode,
+        referredBy: referrer._id,
+        isActive: true, // User is active since they verified their contact
+      }
+
+      if (normalizedEmail) {
+        userData.email = normalizedEmail
+        userData.emailVerified = true
+      }
+
+      if (normalizedPhone) {
+        userData.phone = formatPhoneNumber(normalizedPhone)
+        userData.phoneVerified = true
+      }
+
+      user = await User.create(userData)
     }
 
-    if (normalizedEmail) {
-      userData.email = normalizedEmail
-      userData.emailVerified = true
+    // Ensure balance exists
+    const existingBalance = await Balance.findOne({ userId: user._id })
+    if (!existingBalance) {
+      await Balance.create({
+        userId: user._id,
+      })
     }
-
-    if (normalizedPhone) {
-      userData.phone = formatPhoneNumber(normalizedPhone)
-      userData.phoneVerified = true
-    }
-
-    const user = await User.create(userData)
-
-    // Create initial balance
-    await Balance.create({
-      userId: user._id,
-    })
 
     // Clean up used OTP
     await OTP.deleteOne({ _id: otpRecord._id })
