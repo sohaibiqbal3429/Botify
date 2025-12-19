@@ -101,9 +101,7 @@ function createMemoryModel<T extends Record<string, unknown>>(): InMemoryModel<T
   return {
     data,
     async findOne(filter?: Partial<T>) {
-      if (!filter || Object.keys(filter).length === 0) {
-        return data[0] ?? null
-      }
+      if (!filter || Object.keys(filter).length === 0) return data[0] ?? null
       return data.find((doc) => matchesFilter(doc, filter)) ?? null
     },
     async create(doc: T) {
@@ -136,6 +134,14 @@ export interface SeedResult {
 export async function seedDatabase(): Promise<SeedResult> {
   const useInMemory = process.env.SEED_IN_MEMORY === "true"
   const memory = useInMemory ? inMemoryStores : null
+
+  // ✅ Admin creds from env (FIXED)
+  const adminEmail = process.env.ADMIN_EMAIL?.trim()
+  const adminPassword = process.env.ADMIN_PASSWORD
+
+  if (!adminEmail || !adminPassword) {
+    throw new Error("Missing ADMIN_EMAIL or ADMIN_PASSWORD in .env.local")
+  }
 
   if (useInMemory) {
     console.log("Running seed in in-memory mode (SEED_IN_MEMORY=true)")
@@ -180,14 +186,7 @@ export async function seedDatabase(): Promise<SeedResult> {
       teamRewardPct: 0,
       activeMin: 5,
       teamOverrides: [
-        {
-          team: "A",
-          depth: 1,
-          pct: 1,
-          kind: "daily_override",
-          payout: "commission",
-          appliesTo: "profit",
-        },
+        { team: "A", depth: 1, pct: 1, kind: "daily_override", payout: "commission", appliesTo: "profit" },
       ],
       monthlyBonuses: [],
       monthlyTargets: { directSale: 0, bonus: 0 },
@@ -199,30 +198,9 @@ export async function seedDatabase(): Promise<SeedResult> {
       teamRewardPct: 0,
       activeMin: 10,
       teamOverrides: [
-        {
-          team: "A",
-          depth: 1,
-          pct: 1,
-          kind: "daily_override",
-          payout: "commission",
-          appliesTo: "profit",
-        },
-        {
-          team: "B",
-          depth: 2,
-          pct: 1,
-          kind: "daily_override",
-          payout: "commission",
-          appliesTo: "profit",
-        },
-        {
-          team: "C",
-          depth: 3,
-          pct: 1,
-          kind: "daily_override",
-          payout: "commission",
-          appliesTo: "profit",
-        },
+        { team: "A", depth: 1, pct: 1, kind: "daily_override", payout: "commission", appliesTo: "profit" },
+        { team: "B", depth: 2, pct: 1, kind: "daily_override", payout: "commission", appliesTo: "profit" },
+        { team: "C", depth: 3, pct: 1, kind: "daily_override", payout: "commission", appliesTo: "profit" },
       ],
       monthlyBonuses: [],
       monthlyTargets: { directSale: 0, bonus: 0 },
@@ -234,70 +212,15 @@ export async function seedDatabase(): Promise<SeedResult> {
       teamRewardPct: 2,
       activeMin: 15,
       teamOverrides: [
-        {
-          team: "A",
-          depth: 1,
-          pct: 8,
-          kind: "team_commission",
-          payout: "commission",
-          appliesTo: "profit",
-        },
-        {
-          team: "B",
-          depth: 2,
-          pct: 8,
-          kind: "team_commission",
-          payout: "commission",
-          appliesTo: "profit",
-        },
-        {
-          team: "C",
-          depth: 3,
-          pct: 8,
-          kind: "team_commission",
-          payout: "commission",
-          appliesTo: "profit",
-        },
-        {
-          team: "D",
-          depth: 4,
-          pct: 8,
-          kind: "team_commission",
-          payout: "commission",
-          appliesTo: "profit",
-        },
-        {
-          team: "A",
-          depth: 1,
-          pct: 2,
-          kind: "team_reward",
-          payout: "reward",
-          appliesTo: "profit",
-        },
-        {
-          team: "B",
-          depth: 2,
-          pct: 2,
-          kind: "team_reward",
-          payout: "reward",
-          appliesTo: "profit",
-        },
-        {
-          team: "C",
-          depth: 3,
-          pct: 2,
-          kind: "team_reward",
-          payout: "reward",
-          appliesTo: "profit",
-        },
-        {
-          team: "D",
-          depth: 4,
-          pct: 2,
-          kind: "team_reward",
-          payout: "reward",
-          appliesTo: "profit",
-        },
+        { team: "A", depth: 1, pct: 8, kind: "team_commission", payout: "commission", appliesTo: "profit" },
+        { team: "B", depth: 2, pct: 8, kind: "team_commission", payout: "commission", appliesTo: "profit" },
+        { team: "C", depth: 3, pct: 8, kind: "team_commission", payout: "commission", appliesTo: "profit" },
+        { team: "D", depth: 4, pct: 8, kind: "team_commission", payout: "commission", appliesTo: "profit" },
+
+        { team: "A", depth: 1, pct: 2, kind: "team_reward", payout: "reward", appliesTo: "profit" },
+        { team: "B", depth: 2, pct: 2, kind: "team_reward", payout: "reward", appliesTo: "profit" },
+        { team: "C", depth: 3, pct: 2, kind: "team_reward", payout: "reward", appliesTo: "profit" },
+        { team: "D", depth: 4, pct: 2, kind: "team_reward", payout: "reward", appliesTo: "profit" },
       ],
       monthlyBonuses: [],
       monthlyTargets: { directSale: 0, bonus: 0 },
@@ -309,42 +232,12 @@ export async function seedDatabase(): Promise<SeedResult> {
       teamRewardPct: 0,
       activeMin: 23,
       teamOverrides: [
-        {
-          team: "A",
-          depth: 1,
-          pct: 2,
-          kind: "team_commission",
-          payout: "commission",
-          appliesTo: "profit",
-        },
-        {
-          team: "B",
-          depth: 2,
-          pct: 2,
-          kind: "team_commission",
-          payout: "commission",
-          appliesTo: "profit",
-        },
-        {
-          team: "C",
-          depth: 3,
-          pct: 2,
-          kind: "team_commission",
-          payout: "commission",
-          appliesTo: "profit",
-        },
-        {
-          team: "D",
-          depth: 4,
-          pct: 2,
-          kind: "team_commission",
-          payout: "commission",
-          appliesTo: "profit",
-        },
+        { team: "A", depth: 1, pct: 2, kind: "team_commission", payout: "commission", appliesTo: "profit" },
+        { team: "B", depth: 2, pct: 2, kind: "team_commission", payout: "commission", appliesTo: "profit" },
+        { team: "C", depth: 3, pct: 2, kind: "team_commission", payout: "commission", appliesTo: "profit" },
+        { team: "D", depth: 4, pct: 2, kind: "team_commission", payout: "commission", appliesTo: "profit" },
       ],
-      monthlyBonuses: [
-        { threshold: 2200, amount: 200, type: "bonus", label: "Monthly Bonus" },
-      ],
+      monthlyBonuses: [{ threshold: 2200, amount: 200, type: "bonus", label: "Monthly Bonus" }],
       monthlyTargets: { directSale: 2200, bonus: 200 },
     },
     {
@@ -354,42 +247,12 @@ export async function seedDatabase(): Promise<SeedResult> {
       teamRewardPct: 2,
       activeMin: 30,
       teamOverrides: [
-        {
-          team: "A",
-          depth: 1,
-          pct: 2,
-          kind: "team_reward",
-          payout: "reward",
-          appliesTo: "profit",
-        },
-        {
-          team: "B",
-          depth: 2,
-          pct: 2,
-          kind: "team_reward",
-          payout: "reward",
-          appliesTo: "profit",
-        },
-        {
-          team: "C",
-          depth: 3,
-          pct: 2,
-          kind: "team_reward",
-          payout: "reward",
-          appliesTo: "profit",
-        },
-        {
-          team: "D",
-          depth: 4,
-          pct: 2,
-          kind: "team_reward",
-          payout: "reward",
-          appliesTo: "profit",
-        },
+        { team: "A", depth: 1, pct: 2, kind: "team_reward", payout: "reward", appliesTo: "profit" },
+        { team: "B", depth: 2, pct: 2, kind: "team_reward", payout: "reward", appliesTo: "profit" },
+        { team: "C", depth: 3, pct: 2, kind: "team_reward", payout: "reward", appliesTo: "profit" },
+        { team: "D", depth: 4, pct: 2, kind: "team_reward", payout: "reward", appliesTo: "profit" },
       ],
-      monthlyBonuses: [
-        { threshold: 4500, amount: 400, type: "salary", label: "Monthly Salary" },
-      ],
+      monthlyBonuses: [{ threshold: 4500, amount: 400, type: "salary", label: "Monthly Salary" }],
       monthlyTargets: { directSale: 4500, bonus: 0, salary: 400 },
     },
   ]
@@ -401,9 +264,9 @@ export async function seedDatabase(): Promise<SeedResult> {
   }
 
   for (const rule of commissionRules) {
-    const existing = await commissionRuleModel.findOne({ level: rule.level })
+    const existing = await commissionRuleModel.findOne({ level: rule.level } as any)
     if (!existing) {
-      await commissionRuleModel.create(rule)
+      await commissionRuleModel.create(rule as any)
       createdCommissionLevels.push(rule.level)
       console.log(`✓ Commission rule for level ${rule.level} created`)
     }
@@ -416,11 +279,13 @@ export async function seedDatabase(): Promise<SeedResult> {
     data?: UserSeedDoc[]
   }
 
-  const adminExists = await userModel.findOne({ email: "${adminEmail}" })
+  // ✅ FIXED: real email check
+  const adminExists = await userModel.findOne({ email: adminEmail } as any)
   if (!adminExists) {
-    const passwordHash = await bcrypt.hash("${adminPassword}", 12)
+    const passwordHash = await bcrypt.hash(adminPassword, 12)
+
     await userModel.create({
-      email: "${adminEmail}",
+      email: adminEmail,
       passwordHash,
       name: "Admin User",
       role: "admin",
@@ -433,9 +298,12 @@ export async function seedDatabase(): Promise<SeedResult> {
       phoneVerified: true,
       emailVerified: true,
       lastLoginAt: new Date(),
-    })
+    } as any)
+
     createdAdmin = true
-    console.log("✓ Admin user created (${adminEmail} / ${adminPassword})")
+    console.log(`✓ Admin user created (${adminEmail} / ${adminPassword})`)
+  } else {
+    console.log(`ℹ️ Admin already exists (${adminEmail})`)
   }
 
   console.log("🎉 Database seeding completed!")
@@ -466,5 +334,3 @@ if (process.argv[1]?.includes("seed-database")) {
       process.exit(1)
     })
 }
-
-
