@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2 } from "lucide-react"
 
 import { ImportantUpdateModal } from "@/components/dashboard/important-update-modal"
 import { KPICards } from "@/components/dashboard/kpi-cards"
@@ -96,15 +95,27 @@ export default function DashboardPage() {
   }, [fetchDashboardData])
 
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="space-y-4 text-center">
-          <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading your dashboard...</p>
+  return (
+    <div className="flex h-screen items-center justify-center bg-background">
+      <div className="flex flex-col items-center justify-center gap-4 text-center">
+        <div className="relative h-14 w-14">
+          <div className="absolute inset-0 rounded-full border border-primary/20" />
+          <div className="absolute inset-0 animate-spin rounded-full border-t-2 border-primary" />
+          <div className="absolute inset-2 rounded-full bg-primary/5 backdrop-blur" />
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-sm font-medium tracking-wide text-foreground">
+            Preparing your workspace
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Securing session • Syncing insights • Final touches
+          </p>
         </div>
       </div>
-    )
-  }
+    </div>
+  )
+}
 
   if (!data) {
     return (
@@ -127,7 +138,7 @@ export default function DashboardPage() {
       </div>
 
       <main className="main-content relative min-w-0">
-        <div className="grid-overlay relative mx-auto flex max-w-7xl flex-col gap-8 px-4 pb-12 pt-6 md:px-8">
+        <div className="grid-overlay relative mx-auto flex w-full flex-col gap-8 px-4 pb-12 pt-6 md:px-8">
           <div className="flex flex-col gap-2">
             <p className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-100">
               5gbotify overview

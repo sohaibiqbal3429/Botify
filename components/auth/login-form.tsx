@@ -19,22 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { SORTED_COUNTRY_DIAL_CODES } from "@/lib/constants/country-codes"
-
-const PHONE_REGEX = /^\+[1-9]\d{7,14}$/
 
 interface LoginFormData {
   email: string
-  countryCode: string
-  phone: string
   password: string
 }
 
@@ -44,11 +31,8 @@ export function LoginForm() {
   const { startTask, stopTask } = useTopLoader()
   const [formData, setFormData] = useState<LoginFormData>({
     email: "",
-    countryCode: "+1",
-    phone: "",
     password: "",
   })
-  const [authMethod, setAuthMethod] = useState<"email" | "phone">("email")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [blockedModalOpen, setBlockedModalOpen] = useState(false)
@@ -81,21 +65,7 @@ export function LoginForm() {
     startTask()
     try {
       let identifier = formData.email.trim().toLowerCase()
-      let identifierType: "email" | "phone" = "email"
-
-      if (authMethod === "phone") {
-        const cleanedPhone = formData.phone.replace(/\D/g, "")
-        const normalizedPhone = `${formData.countryCode}${cleanedPhone}`
-
-        if (!PHONE_REGEX.test(normalizedPhone)) {
-          setError("Please enter a valid international phone number")
-          setIsLoading(false)
-          return
-        }
-
-        identifier = normalizedPhone
-        identifierType = "phone"
-      } else if (!identifier) {
+      if (!identifier) {
         setError("Email is required")
         setIsLoading(false)
         return
@@ -107,7 +77,7 @@ export function LoginForm() {
         credentials: "include",
         body: JSON.stringify({
           identifier,
-          identifierType,
+          identifierType: "email",
           password: formData.password,
         }),
       })
@@ -168,7 +138,7 @@ export function LoginForm() {
   }
 
   return (
-    <div className="relative isolate w-full max-w-4xl overflow-hidden rounded-[28px] border border-border/70 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-50 shadow-2xl shadow-primary/20">
+    <div className="relative isolate w-full overflow-hidden rounded-[28px] border border-border/70 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-50 shadow-2xl shadow-primary/20">
       <div className="absolute inset-0 opacity-70 [background:radial-gradient(circle_at_10%_20%,rgba(56,189,248,0.14),transparent_35%),radial-gradient(circle_at_90%_10%,rgba(168,85,247,0.12),transparent_30%),radial-gradient(circle_at_50%_100%,rgba(14,165,233,0.18),transparent_35%)]" />
       <div className="absolute -left-20 top-12 h-52 w-52 rounded-full bg-primary/10 blur-3xl" />
       <div className="absolute -right-24 -top-16 h-60 w-60 rounded-full bg-accent/20 blur-3xl" />
@@ -186,17 +156,10 @@ export function LoginForm() {
               Modern, distraction-free login for your referral dashboard
             </h1>
             <p className="text-sm leading-relaxed text-slate-200/80">
-              Choose how you want to authenticate and pick up right where you left off. Phone and email logins share the same secure session.
+              Sign in with your email and pick up right where you left off. One clean, secure session—no phone details needed.
             </p>
           </div>
           <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-white/10" />
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-white">Multi-channel access</p>
-                <p className="text-xs text-slate-200/70">Switch between email or phone without losing your progress.</p>
-              </div>
-            </div>
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-white/10" />
               <div className="space-y-1">
@@ -223,77 +186,21 @@ export function LoginForm() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              <Tabs
-                value={authMethod}
-                onValueChange={(value) => {
-                  setAuthMethod(value as "email" | "phone")
-                  setError("")
-                }}
-                className="space-y-4"
-              >
-                <TabsList className="grid w-full grid-cols-2 rounded-xl bg-white/5 p-1 text-sm">
-                  <TabsTrigger
-                    value="email"
-                    className="rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-accent data-[state=active]:text-slate-950"
-                  >
-                    Email
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="phone"
-                    className="rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-accent data-[state=active]:text-slate-950"
-                  >
-                    Phone
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="email" className="space-y-3">
-                  <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-200/80">
-                    Email Address
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="name@company.com"
-                    value={formData.email}
-                    onChange={(event) => setFormData((prev) => ({ ...prev, email: event.target.value }))}
-                    className="h-12 rounded-xl border-white/10 bg-slate-900/70 text-white placeholder:text-slate-400"
-                  />
-                </TabsContent>
-
-                <TabsContent value="phone" className="space-y-3">
-                  <Label htmlFor="phone" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-200/80">
-                    Phone Number
-                  </Label>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Select
-                      value={formData.countryCode}
-                      onValueChange={(value) => setFormData((prev) => ({ ...prev, countryCode: value }))}
-                    >
-                      <SelectTrigger className="h-12 rounded-xl border-white/10 bg-slate-900/70 text-left text-white sm:w-44">
-                        <SelectValue placeholder="Country" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-64">
-                        {SORTED_COUNTRY_DIAL_CODES.map((country) => (
-                          <SelectItem key={country.isoCode} value={country.dialCode}>
-                            {country.name} ({country.dialCode})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      id="phone"
-                      inputMode="tel"
-                      placeholder="123 456 789"
-                      value={formData.phone}
-                      onChange={(event) =>
-                        setFormData((prev) => ({ ...prev, phone: event.target.value.replace(/[^\d]/g, "") }))
-                      }
-                      className="h-12 flex-1 rounded-xl border-white/10 bg-slate-900/70 text-white placeholder:text-slate-400"
-                    />
-                  </div>
-                  <p className="text-xs text-slate-200/70">Use the number you registered with, including the country code.</p>
-                </TabsContent>
-              </Tabs>
+              <div className="space-y-3">
+                <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-200/80">
+                  Email Address
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="name@company.com"
+                  value={formData.email}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, email: event.target.value }))}
+                  className="h-12 rounded-xl border-white/10 bg-slate-900/70 text-white placeholder:text-slate-400"
+                  autoComplete="email"
+                  required
+                />
+              </div>
 
               <div className="space-y-3">
                 <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-200/80">

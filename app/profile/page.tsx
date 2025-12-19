@@ -4,7 +4,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { BadgeCheck, CheckCircle, Copy, Key, Loader2, Mail, Phone, Sparkles, User } from "lucide-react"
+import { BadgeCheck, CheckCircle, Copy, Key, Loader2, Mail, Sparkles, User } from "lucide-react"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -20,7 +20,6 @@ import type { SerializableUser } from "@/lib/serializers/user"
 import { PROFILE_AVATAR_OPTIONS } from "@/lib/constants/avatars"
 import { ACTIVE_DEPOSIT_THRESHOLD } from "@/lib/constants/bonuses"
 import { formatOTPSuccessMessage, type OTPSuccessPayload } from "@/lib/utils/otp-messages"
-import { formatPhoneDisplay } from "@/lib/utils/formatting"
 
 type StatusMessage = { success?: string; error?: string }
 
@@ -124,7 +123,6 @@ export default function ProfilePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: profileData.name,
-          phone: profileData.phone,
           avatar: profileData.avatar,
         }),
       })
@@ -147,25 +145,7 @@ export default function ProfilePage() {
     setVerificationStatus({})
     setGlobalError("")
 
-    if (!user?.phone) {
-      setVerificationStatus({ error: "Add a phone number to your profile before verifying." })
-      return
-    }
-
-    setVerifyLoading(true)
-    try {
-      const response = await fetch("/api/profile/verify", { method: "POST" })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.message || data.error || "Failed to verify profile")
-      if (data.user) syncUserState(data.user as SerializableUser)
-      setVerificationStatus({ success: data.message || "Profile verified successfully." })
-      setProfileStatus({})
-    } catch (error: any) {
-      const message = typeof error?.message === "string" ? error.message : "Failed to verify profile"
-      setVerificationStatus({ error: message })
-    } finally {
-      setVerifyLoading(false)
-    }
+    setVerificationStatus({ error: "Phone verification is disabled. Email login is already active." })
   }
 
   const handleSendPasswordOtp = async () => {
@@ -279,7 +259,6 @@ export default function ProfilePage() {
 
   const verificationFlags = [
     { label: "Email verified", active: Boolean(user?.emailVerified) },
-    { label: "Phone verified", active: Boolean(user?.phoneVerified) },
     { label: "Account active", active: isActiveAccount },
   ]
 
@@ -296,12 +275,11 @@ export default function ProfilePage() {
       <div className="relative isolate">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.08),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(14,165,233,0.08),transparent_40%)]" />
 
-        <main className="relative mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10 lg:px-6">
+        <main className="relative mx-auto flex w-full flex-col gap-8 px-4 py-10 lg:px-6">
           <header className="flex flex-col gap-4 rounded-3xl border border-emerald-500/20 bg-slate-900/70 p-6 shadow-lg shadow-emerald-500/10">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-emerald-400/30 bg-slate-950">
-                  <Image src={`/avatars/${selectedAvatar}.svg`} alt="Profile avatar" fill className="object-contain" />
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-[0.28em] text-emerald-200">Profile</p>
@@ -362,7 +340,7 @@ export default function ProfilePage() {
               <TabsTrigger value="referral">Referral</TabsTrigger>
             </TabsList>
 
-            {/* ✅ FIXED PROFILE TAB */}
+            {/* âœ… FIXED PROFILE TAB */}
             <TabsContent value="profile" className="mt-6 space-y-4">
               <div className="grid gap-4 lg:grid-cols-[1.2fr,1fr]">
                 {/* LEFT */}
@@ -402,26 +380,6 @@ export default function ProfilePage() {
                           </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="phone">Phone</Label>
-                          <div className="flex items-center gap-2">
-                            <Phone className="h-4 w-4 text-muted-foreground" />
-                            <Input
-                              id="phone"
-                              type="tel"
-                              inputMode="tel"
-                              placeholder="+15551234567"
-                              pattern="^\\+[1-9]\\d{7,14}$"
-                              value={profileData.phone}
-                              onChange={(event) =>
-                                setProfileData((prev) => ({ ...prev, phone: event.target.value }))
-                              }
-                              required
-                            />
-                            {user?.phoneVerified && <Badge variant="secondary">Verified</Badge>}
-                          </div>
-                          <p className="text-xs text-muted-foreground">Use international format.</p>
-                        </div>
                       </div>
 
                       <div className="space-y-2">
@@ -520,17 +478,7 @@ export default function ProfilePage() {
                       </Badge>
                     </div>
 
-                    <div className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-900/80 px-3 py-2">
-                      <div>
-                        <p className="text-sm font-semibold text-white">Phone</p>
-                        <p className="text-xs text-slate-400">
-                          {formatPhoneDisplay(profileData.phone) || "Add phone"}
-                        </p>
-                      </div>
-                      <Badge variant={user?.phoneVerified ? "default" : "outline"}>
-                        {user?.phoneVerified ? "Verified" : "Unverified"}
-                      </Badge>
-                    </div>
+                    {/* Phone removed for email-only auth */}
 
                     <div className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-900/80 px-3 py-2">
                       <div>
@@ -717,7 +665,7 @@ export default function ProfilePage() {
                       <ul className="mt-2 space-y-2 text-xs text-slate-400">
                         <li>Share with context: explain the daily profit mission and rewards.</li>
                         <li>Highlight activation thresholds and payout timelines.</li>
-                        <li>Remind friends to verify phone/email for smoother rewards.</li>
+                        <li>Remind friends to verify email for smoother rewards.</li>
                       </ul>
                     </div>
                   </CardContent>
@@ -734,13 +682,14 @@ export default function ProfilePage() {
                         <div>
                           <p className="text-sm font-semibold text-white">Phone verification</p>
                           <p className="text-xs text-slate-400">
-                            {user?.phone ? formatPhoneDisplay(user.phone) : "Add a phone"}
+                            Phone verification is disabled. Email-only login is active.
                           </p>
                         </div>
-                        <Badge variant={user?.phoneVerified ? "default" : "outline"}>
-                          {user?.phoneVerified ? "Verified" : "Pending"}
-                        </Badge>
+                        <Badge variant="outline">Disabled</Badge>
                       </div>
+                      {verificationStatus.error && (
+                        <p className="mt-2 text-xs text-red-400">{verificationStatus.error}</p>
+                      )}
                     </div>
 
                     <div className="rounded-xl border border-slate-800/70 bg-slate-900/70 p-4">

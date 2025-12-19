@@ -6,9 +6,6 @@ import Transaction from "@/models/Transaction"
 import BonusPayout, { type BonusPayoutType } from "@/models/Payout"
 import {
   ACTIVE_DEPOSIT_THRESHOLD,
-  DEPOSIT_L1_PERCENT,
-  DEPOSIT_L2_PERCENT_ACTIVE,
-  DEPOSIT_SELF_PERCENT_ACTIVE,
   TEAM_EARN_L1_PERCENT,
   TEAM_EARN_L2_PERCENT,
   TEAM_REWARD_UNLOCK_LEVEL,
@@ -212,10 +209,10 @@ export async function applyDepositRewards(
     const wasActive = lifetimeBefore >= ACTIVE_DEPOSIT_THRESHOLD
     const depositorActive = lifetimeAfter >= ACTIVE_DEPOSIT_THRESHOLD
 
-    // Rule: self 5% only if depositorActive; L1 always 15%; L2 = 3% only if depositorActive
-    const selfPercent = depositorActive ? DEPOSIT_SELF_PERCENT_ACTIVE : 0
-    const l1Percent = DEPOSIT_L1_PERCENT
-    const l2Percent = depositorActive ? DEPOSIT_L2_PERCENT_ACTIVE : 0
+    // New rule: L1 always 15%, L2 always 3%, no self bonus
+    const selfPercent = 0
+    const l1Percent = 0.15
+    const l2Percent = 0.03
 
     let selfBonus = 0
     let l1Bonus = 0

@@ -37,7 +37,7 @@ export function AppHeader() {
         className="sticky top-0 z-[100] border-b border-slate-800/80 bg-slate-950/80 shadow-[0_10px_40px_-24px_rgba(0,0,0,0.85)] backdrop-blur"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
-        <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-3 md:px-6">
+        <div className="flex h-16 w-full items-center gap-4 px-3 md:px-6">
           {/* ✅ MOBILE MENU BUTTON (must be here) */}
           <button
             ref={menuButtonRef}

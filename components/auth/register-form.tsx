@@ -10,24 +10,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { SORTED_COUNTRY_DIAL_CODES } from "@/lib/constants/country-codes"
 import { OTPInput } from "@/components/auth/otp-input"
 import { formatOTPSuccessMessage, type OTPSuccessPayload } from "@/lib/utils/otp-messages"
-
-const PHONE_REGEX = /^\+[1-9]\d{7,14}$/
 
 interface RegisterFormData {
   name: string
   email: string
-  countryCode: string
-  phone: string
   password: string
   confirmPassword: string
   referralCode: string
@@ -40,8 +28,6 @@ export function RegisterForm() {
   const [formData, setFormData] = useState<RegisterFormData>({
     name: "",
     email: "",
-    countryCode: "+1",
-    phone: "",
     password: "",
     confirmPassword: "",
     referralCode: "",
@@ -74,10 +60,6 @@ export function RegisterForm() {
   }, [otpCountdown])
 
   const normalizedEmail = useMemo(() => formData.email.trim().toLowerCase(), [formData.email])
-  const normalizedPhone = useMemo(() => {
-    const cleanedPhone = formData.phone.replace(/\D/g, "")
-    return `${formData.countryCode}${cleanedPhone}`
-  }, [formData.countryCode, formData.phone])
 
   const resetOTPState = () => {
     setStep("details")
@@ -97,11 +79,6 @@ export function RegisterForm() {
     if (step === "details") {
       if (formData.password !== formData.confirmPassword) {
         setError("Passwords do not match")
-        return
-      }
-
-      if (!PHONE_REGEX.test(normalizedPhone)) {
-        setError("Please enter a valid international phone number")
         return
       }
 
@@ -174,7 +151,6 @@ export function RegisterForm() {
         body: JSON.stringify({
           name: formData.name.trim(),
           email: normalizedEmail,
-          phone: normalizedPhone,
           password: formData.password,
           referralCode: formData.referralCode.trim().toUpperCase(),
           otpCode: otpValue,
@@ -233,7 +209,7 @@ export function RegisterForm() {
   }
 
   return (
-    <div className="relative isolate w-full max-w-5xl overflow-hidden rounded-[28px] border border-border/60 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-50 shadow-2xl shadow-primary/20">
+    <div className="relative isolate w-full overflow-hidden rounded-[28px] border border-border/60 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-50 shadow-2xl shadow-primary/20">
       <div className="absolute inset-0 opacity-70 [background:radial-gradient(circle_at_20%_20%,rgba(14,165,233,0.2),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(99,102,241,0.16),transparent_32%),radial-gradient(circle_at_50%_90%,rgba(56,189,248,0.15),transparent_34%)]" />
       <div className="absolute -right-16 top-16 h-56 w-56 rounded-full bg-primary/15 blur-3xl" />
       <div className="absolute -left-24 -bottom-24 h-72 w-72 rounded-full bg-accent/15 blur-3xl" />
@@ -260,7 +236,7 @@ export function RegisterForm() {
               <span className="mt-1 flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-xs font-semibold text-primary">1</span>
               <div>
                 <p className="text-sm font-semibold text-white">Add your details</p>
-                <p className="text-xs text-slate-200/70">Name, contact preferences, and a referral code you received.</p>
+                <p className="text-xs text-slate-200/70">Name, email, and a referral code you received.</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
@@ -342,52 +318,6 @@ export function RegisterForm() {
                     disabled={step === "otp"}
                   />
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="phone" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-200/80">
-                  Phone Number
-                </Label>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Select
-                    value={formData.countryCode}
-                    onValueChange={(value) => {
-                      setFormData((prev) => ({ ...prev, countryCode: value }))
-                      if (step === "otp") {
-                        resetOTPState()
-                      }
-                    }}
-                    disabled={step === "otp"}
-                  >
-                    <SelectTrigger className="h-12 rounded-xl border-white/10 bg-slate-900/70 text-left text-white sm:w-44">
-                      <SelectValue placeholder="Country" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-64">
-                      {SORTED_COUNTRY_DIAL_CODES.map((country) => (
-                        <SelectItem key={country.isoCode} value={country.dialCode}>
-                          {country.name} ({country.dialCode})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Input
-                    id="phone"
-                    inputMode="tel"
-                    placeholder="123 456 789"
-                    value={formData.phone}
-                    onChange={(event) => {
-                      setFormData((prev) => ({ ...prev, phone: event.target.value.replace(/[^\d]/g, "") }))
-                      if (step === "otp") {
-                        resetOTPState()
-                      }
-                    }}
-                    required
-                    className="h-12 flex-1 rounded-xl border-white/10 bg-slate-900/70 text-white placeholder:text-slate-400"
-                    disabled={step === "otp"}
-                  />
-                </div>
-                <p className="text-xs text-slate-200/70">Include your full phone number. Country code is added automatically.</p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">

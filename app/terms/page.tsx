@@ -66,7 +66,7 @@ const FAQS = [
 function TermsContent() {
   return (
     <div className="flex min-h-screen bg-background">
-      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10">
+    <main className="mx-auto flex w-full flex-col gap-6 px-4 py-10">
         <header className="space-y-2 text-center">
           <p className="text-xs uppercase tracking-[0.28em] text-emerald-500">Knowledge base</p>
           <h1 className="text-3xl font-semibold">Terms & FAQs</h1>
