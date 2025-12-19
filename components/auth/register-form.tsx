@@ -97,7 +97,7 @@ export function RegisterForm() {
         const data = (await response.json().catch(() => ({}))) as OTPSuccessPayload & { error?: string }
 
         if (!response.ok) {
-          setError(data.error || "Failed to send verification code")
+          setError(data.message || data.error || "Failed to send verification code")
           return
         }
 
@@ -141,7 +141,8 @@ export function RegisterForm() {
       const verifyData = await verifyResponse.json().catch(() => ({}))
 
       if (!verifyResponse.ok) {
-        setError((verifyData as { error?: string }).error || "Verification failed")
+        const parsedError = verifyData as { error?: string; message?: string }
+        setError(parsedError.message || parsedError.error || "Verification failed")
         return
       }
 
@@ -160,7 +161,8 @@ export function RegisterForm() {
       const registerData = await registerResponse.json().catch(() => ({}))
 
       if (!registerResponse.ok) {
-        setError((registerData as { error?: string }).error || "Registration failed")
+        const parsedError = registerData as { error?: string; message?: string }
+        setError(parsedError?.message || parsedError?.error || "Registration failed")
         return
       }
 
@@ -190,10 +192,10 @@ export function RegisterForm() {
         }),
       })
 
-      const data = (await response.json().catch(() => ({}))) as OTPSuccessPayload & { error?: string }
+      const data = (await response.json().catch(() => ({}))) as OTPSuccessPayload & { error?: string; message?: string }
 
       if (!response.ok) {
-        setError(data.error || "Failed to resend code")
+        setError(data.message || data.error || "Failed to resend code")
         return
       }
 
