@@ -28,11 +28,6 @@ const registerWithOTPSchema = z
     message: "Either email or phone must be provided",
   })
 
-const ADMIN_ALLOWLIST = (process.env.ADMIN_ALLOWLIST ?? "admin@cryptomining.com")
-  .split(",")
-  .map((email) => email.trim().toLowerCase())
-  .filter(Boolean)
-
 export async function POST(request: NextRequest) {
   try {
     await dbConnect()
@@ -82,16 +77,8 @@ export async function POST(request: NextRequest) {
       $or: [{ email: normalizedEmail }, { phone: normalizedPhone }].filter(Boolean),
     })
 
-    if (existingUser?.role === "admin") {
-      const isProtectedAdmin = existingUser.email && ADMIN_ALLOWLIST.includes(existingUser.email.toLowerCase())
-      if (isProtectedAdmin) {
-        return NextResponse.json(
-          { success: false, message: "This account is protected and cannot be registered through this form." },
-          { status: 403 },
-        )
-      }
-      // If this record was accidentally promoted, downgrade it and continue
-      existingUser.role = "user"
+    if (existingUser) {
+      return NextResponse.json({ success: false, message: "User already exists with this email or phone" }, { status: 400 })
     }
 
     // Verify referral code exists
@@ -100,77 +87,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: "Invalid referral code" }, { status: 400 })
     }
 
+    // Generate unique referral code for new user
+    let newReferralCode: string
+    do {
+      newReferralCode = generateReferralCode()
+    } while (await User.findOne({ referralCode: newReferralCode }))
+
     // Hash password
     const passwordHash = await hashPassword(validatedData.password)
 
-    let user = existingUser
-
-    if (existingUser) {
-      // Allow an existing user to re-verify and reset credentials via OTP
-      existingUser.name = validatedData.name
-      existingUser.passwordHash = passwordHash
-      existingUser.isActive = true
-
-      if (normalizedEmail) {
-        existingUser.email = normalizedEmail
-        existingUser.emailVerified = true
-      }
-
-      if (normalizedPhone) {
-        existingUser.phone = formatPhoneNumber(normalizedPhone)
-        existingUser.phoneVerified = true
-      }
-
-      if (!existingUser.referredBy) {
-        existingUser.referredBy = referrer._id
-      }
-
-      if (!existingUser.referralCode) {
-        let newReferralCode: string
-        do {
-          newReferralCode = generateReferralCode()
-        } while (await User.findOne({ referralCode: newReferralCode }))
-        existingUser.referralCode = newReferralCode
-      }
-
-      existingUser.role = "user" // enforce non-admin on public registration path
-      await existingUser.save()
-    } else {
-      // Generate unique referral code for new user
-      let newReferralCode: string
-      do {
-        newReferralCode = generateReferralCode()
-      } while (await User.findOne({ referralCode: newReferralCode }))
-
-      const userData: any = {
-        name: validatedData.name,
-        passwordHash,
-        referralCode: newReferralCode,
-        referredBy: referrer._id,
-        isActive: true, // User is active since they verified their contact
-        role: "user",
-      }
-
-      if (normalizedEmail) {
-        userData.email = normalizedEmail
-        userData.emailVerified = true
-      }
-
-      if (normalizedPhone) {
-        userData.phone = formatPhoneNumber(normalizedPhone)
-        userData.phoneVerified = true
-      }
-
-      user = await User.create(userData)
+    // Create user
+    const userData: any = {
+      name: validatedData.name,
+      passwordHash,
+      referralCode: newReferralCode,
+      referredBy: referrer._id,
+      isActive: true, // User is active since they verified their contact
     }
 
-    // Ensure balance exists
-    const existingBalance = await Balance.findOne({ userId: user._id })
-    if (!existingBalance) {
-      await Balance.create({
-        userId: user._id,
-      })
+    if (normalizedEmail) {
+      userData.email = normalizedEmail
+      userData.emailVerified = true
     }
+
+    if (normalizedPhone) {
+      userData.phone = formatPhoneNumber(normalizedPhone)
+      userData.phoneVerified = true
+    }
+
+    const user = await User.create(userData)
+
+    // Create initial balance
+    await Balance.create({
+      userId: user._id,
+    })
 
     // Clean up used OTP
     await OTP.deleteOne({ _id: otpRecord._id })

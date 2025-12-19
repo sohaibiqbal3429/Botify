@@ -63,7 +63,6 @@ export async function POST(request: NextRequest) {
       passwordHash,
       referralCode: newReferralCode,
       referredBy: referrer._id,
-      role: "user",
     })
     console.log("[v0] User created successfully:", user._id)
 
