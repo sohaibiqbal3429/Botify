@@ -99,7 +99,7 @@ export function AppHeader() {
           {/* Right: actions */}
           <div className="ml-auto hidden items-center gap-3 whitespace-nowrap md:flex">
             <Link
-              href="/terms"
+              href="/auth/login"
               className="inline-flex items-center gap-2 rounded-lg border border-slate-800/70 bg-slate-900/70 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-cyan-400/60 hover:text-white"
             >
               <FileText className="h-4 w-4" aria-hidden />
