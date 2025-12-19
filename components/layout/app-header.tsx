@@ -17,14 +17,19 @@ export function AppHeader() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
 
+  // ✅ Sign out -> clears session (api) -> redirect to /auth/login
   const handleLogout = useCallback(async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" })
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include", // ✅ ensures cookie is included/cleared
+      })
     } catch (error) {
       console.error("Logout error", error)
     } finally {
       setDrawerOpen(false)
-      router.push("/auth/login")
+      router.replace("/auth/login") // ✅ prevent back navigation to protected pages
+      router.refresh() // ✅ re-check auth state immediately
     }
   }, [router])
 
@@ -44,6 +49,7 @@ export function AppHeader() {
         <div className="flex h-16 w-full items-center gap-4 px-3 md:px-6">
           {/* Left: brand & mobile trigger */}
           <div className="flex items-center gap-3 whitespace-nowrap">
+            {/* ✅ Mobile menu button */}
             <button
               ref={menuButtonRef}
               type="button"
@@ -56,6 +62,7 @@ export function AppHeader() {
               <Menu className="h-5 w-5" aria-hidden />
             </button>
 
+            {/* Logo */}
             <Link href="/" className="group flex items-center gap-3" prefetch>
               <div className="leading-tight">
                 <div className="flex items-center gap-2">
@@ -120,7 +127,12 @@ export function AppHeader() {
         </div>
       </header>
 
-      <MobileNavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} anchorRef={menuButtonRef} />
+      {/* ✅ Mobile drawer */}
+      <MobileNavDrawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        anchorRef={menuButtonRef}
+      />
     </>
   )
 }

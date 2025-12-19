@@ -35,7 +35,7 @@ export const PRIMARY_NAV_ITEMS: AppNavItem[] = [
   { name: "Knowledge Base", href: "/terms", icon: FileText },
 
   // ✅ added
-  { name: "Logout", href: "/auth/login", icon: LogOut },
+  // { name: "Logout", href: "/auth/login", icon: LogOut },
 ]
 
 export const ADMIN_NAV_ITEM: AppNavItem = {
