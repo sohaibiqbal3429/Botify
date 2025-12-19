@@ -30,8 +30,10 @@ function isFileLike(value: unknown): value is File {
   )
 }
 
-
-export async function submitDepositAction(_: DepositFormState, formData: FormData): Promise<DepositFormState> {
+export async function submitDepositAction(
+  _: DepositFormState,
+  formData: FormData,
+): Promise<DepositFormState> {
   const cookieStore = await cookies()
   const token = cookieStore.get("auth-token")?.value
   if (!token) {
@@ -50,7 +52,11 @@ export async function submitDepositAction(_: DepositFormState, formData: FormDat
 
   const amountPattern = /^\d+(?:\.\d{0,2})?$/
   if (!amountPattern.test(amountRaw)) {
-    return { error: amountRaw.includes(".") ? "Amount can have at most 2 decimal places." : "Enter a valid deposit amount" }
+    return {
+      error: amountRaw.includes(".")
+        ? "Amount can have at most 2 decimal places."
+        : "Enter a valid deposit amount",
+    }
   }
 
   const amountValue = Number.parseFloat(amountRaw)
@@ -83,17 +89,23 @@ export async function submitDepositAction(_: DepositFormState, formData: FormDat
       receiptFile,
     })
 
-    revalidatePath("/wallet")
+    // ✅ FIX: your wallet route is /e-wallet
+    revalidatePath("/e-wallet")
 
-    return {
-      success: result.message,
-    }
+    return { success: result.message }
   } catch (error: any) {
+    // ✅ Better logging to catch the real reason
+    console.error("Deposit submission failed (raw):", {
+      name: error?.name,
+      message: error?.message,
+      stack: error?.stack,
+      cause: error?.cause,
+    })
+
     if (error instanceof DepositSubmissionError) {
       return { error: error.message }
     }
 
-    console.error("Deposit submission failed", error)
     return { error: "Unable to submit deposit. Please try again." }
   }
 }
@@ -105,11 +117,13 @@ function resolveInternalUrl(path: string): string {
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "")
 
   const baseUrl = configuredBase ? configuredBase.replace(/\/$/, "") : "http://localhost:3000"
-
   return `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`
 }
 
-export async function submitWithdrawAction(_: WithdrawFormState, formData: FormData): Promise<WithdrawFormState> {
+export async function submitWithdrawAction(
+  _: WithdrawFormState,
+  formData: FormData,
+): Promise<WithdrawFormState> {
   const cookieStore = await cookies()
   const token = cookieStore.get("auth-token")?.value
   if (!token) {
@@ -164,7 +178,8 @@ export async function submitWithdrawAction(_: WithdrawFormState, formData: FormD
       return { error: message }
     }
 
-    revalidatePath("/wallet")
+    // ✅ FIX: your wallet route is /e-wallet
+    revalidatePath("/e-wallet")
 
     return {
       success:
