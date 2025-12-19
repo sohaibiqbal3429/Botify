@@ -78,9 +78,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({
-      $or: [{ email: normalizedEmail }, { phone: normalizedPhone }].filter(Boolean),
-    })
+    const userQuery =
+      contactFilters.length === 1
+        ? contactFilters[0]
+        : contactFilters.length > 1
+          ? { $or: contactFilters }
+          : null
+
+    if (!userQuery) {
+      return NextResponse.json(
+        { success: false, message: "Either email or phone must be provided" },
+        { status: 400 },
+      )
+    }
+
+    const existingUser = await User.findOne(userQuery)
 
     if (existingUser?.role === "admin") {
       const isProtectedAdmin = existingUser.email && ADMIN_ALLOWLIST.includes(existingUser.email.toLowerCase())
