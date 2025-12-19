@@ -23,8 +23,13 @@ interface DashboardData {
   }
   mining: {
     canMine: boolean
-    nextEligibleAt: string
+    nextEligibleAt: string | null
+    lastClickAt?: string | null
     earnedInCycle: number
+    timeLeft?: number
+    requiresDeposit?: boolean
+    minDeposit?: number
+    roiCapReached?: boolean
   }
   user: {
     level: number
@@ -104,6 +109,10 @@ export default function DashboardPage() {
     fetchDashboardData()
   }, [fetchDashboardData])
 
+  const handleMiningSuccess = useCallback(() => {
+    fetchDashboardData()
+  }, [fetchDashboardData])
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -180,7 +189,7 @@ export default function DashboardPage() {
 
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2">
-              <MiningWidget data={data} />
+              <MiningWidget mining={data.mining} onMiningSuccess={handleMiningSuccess} />
             </div>
             <RateLimitTelemetryCard />
           </div>
