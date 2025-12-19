@@ -12,6 +12,7 @@ import {
   Settings,
   User,
   Users,
+  LogOut,
 } from "lucide-react"
 
 export type AppNavItem = {
@@ -32,6 +33,9 @@ export const PRIMARY_NAV_ITEMS: AppNavItem[] = [
   // { name: "Help Desk", href: "/support", icon: HelpCircle },
   { name: "Account Center", href: "/profile", icon: User },
   { name: "Knowledge Base", href: "/terms", icon: FileText },
+
+  // ✅ added
+  { name: "Logout", href: "/logout", icon: LogOut },
 ]
 
 export const ADMIN_NAV_ITEM: AppNavItem = {
@@ -53,16 +57,17 @@ const PAGE_TITLE_RULES: Array<{ pattern: RegExp; title: string }> = [
   { pattern: /^\/profile(?:\/.+)?$/, title: "Account Center" },
   { pattern: /^\/terms(?:\/.+)?$/, title: "Knowledge Base" },
   { pattern: /^\/admin(?:\/.+)?$/, title: "Admin Panel" },
+
+  // ✅ added
+  { pattern: /^\/logout(?:\/.+)?$/, title: "Logout" },
 ]
 
 export function getPageTitle(pathname: string): string {
   const match = PAGE_TITLE_RULES.find(({ pattern }) => pattern.test(pathname))
-  if (match) {
-    return match.title
-  }
+  if (match) return match.title
 
-  const fallback = PRIMARY_NAV_ITEMS.find((item) =>
-    pathname === item.href || pathname.startsWith(`${item.href}/`),
+  const fallback = PRIMARY_NAV_ITEMS.find(
+    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
   )
   return fallback?.name ?? "5gbotify"
 }
