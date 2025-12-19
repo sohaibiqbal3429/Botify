@@ -126,7 +126,6 @@ export default function DashboardPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.1),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(6,182,212,0.12),transparent_40%)]" />
       </div>
 
-      <ImportantUpdateModal />
       <main className="main-content relative min-w-0">
         <div className="grid-overlay relative mx-auto flex max-w-7xl flex-col gap-8 px-4 pb-12 pt-6 md:px-8">
           <div className="flex flex-col gap-2">
@@ -171,8 +170,8 @@ export default function DashboardPage() {
           <div className="grid gap-6 xl:grid-cols-[2fr,1.25fr]">
             <DailyProfitMission />
             <div className="grid gap-6">
-              <HalvingChart />
-              <RateLimitTelemetryCard />
+              {/* <HalvingChart /> */}
+              {/* <RateLimitTelemetryCard /> */}
             </div>
           </div>
 
@@ -224,12 +223,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <LuckyDrawCard currentUser={user} />
-            </div>
-            <InviteAndEarnPanel referralCode={data.user.referralCode} />
-          </div>
+         
         </div>
       </main>
     </div>
