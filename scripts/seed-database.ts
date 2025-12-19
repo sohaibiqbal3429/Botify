@@ -416,11 +416,11 @@ export async function seedDatabase(): Promise<SeedResult> {
     data?: UserSeedDoc[]
   }
 
-  const adminExists = await userModel.findOne({ email: "admin@cryptomining.com" })
+  const adminExists = await userModel.findOne({ email: "${adminEmail}" })
   if (!adminExists) {
-    const passwordHash = await bcrypt.hash("Coin4$", 12)
+    const passwordHash = await bcrypt.hash("${adminPassword}", 12)
     await userModel.create({
-      email: "admin@cryptomining.com",
+      email: "${adminEmail}",
       passwordHash,
       name: "Admin User",
       role: "admin",
@@ -435,7 +435,7 @@ export async function seedDatabase(): Promise<SeedResult> {
       lastLoginAt: new Date(),
     })
     createdAdmin = true
-    console.log("✓ Admin user created (admin@cryptomining.com / Coin4$)")
+    console.log("✓ Admin user created (${adminEmail} / ${adminPassword})")
   }
 
   console.log("🎉 Database seeding completed!")
@@ -466,3 +466,5 @@ if (process.argv[1]?.includes("seed-database")) {
       process.exit(1)
     })
 }
+
+
