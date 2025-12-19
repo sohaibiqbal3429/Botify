@@ -7,10 +7,19 @@ export interface MiddlewareJWTPayload {
 }
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "your-secret-key"
+const SESSION_COOKIE_NAMES = [
+  "auth-token", // legacy custom JWT cookie
+  "next-auth.session-token", // NextAuth (http)
+  "__Secure-next-auth.session-token", // NextAuth (https)
+  "__Host-next-auth.session-token", // NextAuth (host-only https)
+]
+
+type SupportedAlg = "HS256" | "HS512"
+
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
-let cachedKey: CryptoKey | null = null
+const keyCache: Partial<Record<SupportedAlg, CryptoKey>> = {}
 
 function base64UrlToUint8Array(input: string): Uint8Array {
   let base64 = input.replace(/-/g, "+").replace(/_/g, "/")
@@ -31,41 +40,41 @@ function base64UrlToUint8Array(input: string): Uint8Array {
   return bytes
 }
 
-async function getSigningKey(): Promise<CryptoKey> {
-  if (cachedKey) {
-    return cachedKey
-  }
-
-  const key = await crypto.subtle.importKey("raw", encoder.encode(JWT_SECRET), {
-    name: "HMAC",
-    hash: "SHA-256",
-  }, false, ["sign", "verify"])
-
-  cachedKey = key
-  return key
-}
-
-function decodePayload(payloadSegment: string): Record<string, unknown> | null {
+function decodeJsonSegment(segment: string): Record<string, unknown> | null {
   try {
-    const payloadBytes = base64UrlToUint8Array(payloadSegment)
-    const json = decoder.decode(payloadBytes)
+    const bytes = base64UrlToUint8Array(segment)
+    const json = decoder.decode(bytes)
     const parsed = JSON.parse(json)
     if (parsed && typeof parsed === "object") {
       return parsed as Record<string, unknown>
     }
   } catch (error) {
-    console.warn("[auth] Failed to decode JWT payload", error)
+    console.warn("[auth] Failed to decode JWT segment", error)
   }
   return null
 }
 
-async function verifySignature(data: string, signatureSegment: string): Promise<boolean> {
+async function getSigningKey(alg: SupportedAlg): Promise<CryptoKey> {
+  if (keyCache[alg]) {
+    return keyCache[alg]!
+  }
+
+  const key = await crypto.subtle.importKey("raw", encoder.encode(JWT_SECRET), {
+    name: "HMAC",
+    hash: alg === "HS512" ? "SHA-512" : "SHA-256",
+  }, false, ["sign", "verify"])
+
+  keyCache[alg] = key
+  return key
+}
+
+async function verifySignature(data: string, signatureSegment: string, alg: SupportedAlg): Promise<boolean> {
   try {
-    const key = await getSigningKey()
+    const key = await getSigningKey(alg)
     const signature = base64UrlToUint8Array(signatureSegment)
     return crypto.subtle.verify("HMAC", key, signature, encoder.encode(data))
   } catch (error) {
-    console.warn("[auth] Failed to verify JWT signature", error)
+    console.warn(`[auth] Failed to verify JWT signature (${alg})`, error)
     return false
   }
 }
@@ -77,7 +86,8 @@ async function verifyToken(token: string): Promise<MiddlewareJWTPayload | null> 
   }
 
   const [headerSegment, payloadSegment, signatureSegment] = parts
-  const payload = decodePayload(payloadSegment)
+  const header = decodeJsonSegment(headerSegment)
+  const payload = decodeJsonSegment(payloadSegment)
   if (!payload) {
     return null
   }
@@ -90,15 +100,31 @@ async function verifyToken(token: string): Promise<MiddlewareJWTPayload | null> 
     return null
   }
 
+  const algorithmsToTry: SupportedAlg[] = []
+  const headerAlg = typeof header?.alg === "string" ? header.alg : undefined
+  if (headerAlg === "HS512" || headerAlg === "HS256") {
+    algorithmsToTry.push(headerAlg)
+  } else {
+    algorithmsToTry.push("HS256", "HS512")
+  }
+
   const data = `${headerSegment}.${payloadSegment}`
-  const validSignature = await verifySignature(data, signatureSegment)
-  if (!validSignature) {
+  let valid = false
+  for (const alg of algorithmsToTry) {
+    const verified = await verifySignature(data, signatureSegment, alg)
+    if (verified) {
+      valid = true
+      break
+    }
+  }
+
+  if (!valid) {
     return null
   }
 
-  const userId = payload.userId
-  const email = payload.email
-  const role = payload.role
+  const userId = payload.userId ?? payload.sub ?? payload.id
+  const email = payload.email ?? (payload as any)?.user?.email
+  const role = payload.role ?? (payload as any)?.user?.role ?? "user"
 
   if (typeof userId === "string" && typeof email === "string" && typeof role === "string") {
     return { userId, email, role }
@@ -113,8 +139,12 @@ export function getTokenFromRequest(request: NextRequest): string | null {
     return authHeader.substring(7)
   }
 
-  const token = request.cookies.get("auth-token")?.value
-  return token || null
+  for (const name of SESSION_COOKIE_NAMES) {
+    const token = request.cookies.get(name)?.value
+    if (token) return token
+  }
+
+  return null
 }
 
 export async function getUserFromRequest(request: NextRequest): Promise<MiddlewareJWTPayload | null> {
