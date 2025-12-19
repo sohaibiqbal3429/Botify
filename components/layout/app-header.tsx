@@ -1,19 +1,32 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { FileText, Menu } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import { Menu } from "lucide-react"
 
-import  { AUTH_HIDDEN_ROUTES } from "@/components/layout/quick-actions"
+import { AUTH_HIDDEN_ROUTES } from "@/components/layout/quick-actions"
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer"
 import { PRIMARY_NAV_ITEMS } from "@/components/layout/nav-config"
 import { cn } from "@/lib/utils"
+import { Button } from "../ui/button"
 
 export function AppHeader() {
   const pathname = usePathname() ?? "/"
+  const router = useRouter()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+    } catch (error) {
+      console.error("Logout error", error)
+    } finally {
+      setDrawerOpen(false)
+      router.push("/auth/login")
+    }
+  }, [router])
 
   const shouldHide = useMemo(
     () => AUTH_HIDDEN_ROUTES.some((pattern) => pattern.test(pathname)),
@@ -44,29 +57,27 @@ export function AppHeader() {
             </button>
 
             <Link href="/" className="group flex items-center gap-3" prefetch>
-             
-             <div className="leading-tight">
-  <div className="flex items-center gap-2">
-    <span className="text-[10px] font-medium uppercase tracking-[0.42em] text-slate-400">
-      Signal Grid
-    </span>
-    <span className="h-1 w-1 rounded-full bg-emerald-300/70" />
-    <span className="text-[10px] font-medium uppercase tracking-[0.34em] text-slate-500">
-      Beta
-    </span>
-  </div>
+              <div className="leading-tight">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-medium uppercase tracking-[0.42em] text-slate-400">
+                    Signal Grid
+                  </span>
+                  <span className="h-1 w-1 rounded-full bg-emerald-300/70" />
+                  <span className="text-[10px] font-medium uppercase tracking-[0.34em] text-slate-500">
+                    Beta
+                  </span>
+                </div>
 
-  <div className="mt-1 flex items-baseline gap-2">
-    <span className="text-lg font-semibold tracking-tight text-white">
-      5GBOTIFY
-    </span>
-    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/15 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200">
-      <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
-      Live
-    </span>
-  </div>
-</div>
-
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-lg font-semibold tracking-tight text-white">
+                    5GBOTIFY
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/15 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                    Live
+                  </span>
+                </div>
+              </div>
             </Link>
           </div>
 
@@ -98,13 +109,13 @@ export function AppHeader() {
 
           {/* Right: actions */}
           <div className="ml-auto hidden items-center gap-3 whitespace-nowrap md:flex">
-            <Link
-              href="/auth/login"
+            <Button
+              variant="ghost"
               className="inline-flex items-center gap-2 rounded-lg border border-slate-800/70 bg-slate-900/70 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-cyan-400/60 hover:text-white"
+              onClick={() => void handleLogout()}
             >
-              <FileText className="h-4 w-4" aria-hidden />
-              <span>Knowledge Base</span>
-            </Link>
+              Sign out
+            </Button>
           </div>
         </div>
       </header>

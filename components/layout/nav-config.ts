@@ -59,7 +59,7 @@ const PAGE_TITLE_RULES: Array<{ pattern: RegExp; title: string }> = [
   { pattern: /^\/admin(?:\/.+)?$/, title: "Admin Panel" },
 
   // ✅ added
-  { pattern: /^\/logout(?:\/.+)?$/, title: "Logout" },
+  // { pattern: /^\/logout(?:\/.+)?$/, title: "Logout" },
 ]
 
 export function getPageTitle(pathname: string): string {
