@@ -28,6 +28,11 @@ const registerWithOTPSchema = z
     message: "Either email or phone must be provided",
   })
 
+const ADMIN_ALLOWLIST = (process.env.ADMIN_ALLOWLIST ?? "admin@cryptomining.com")
+  .split(",")
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean)
+
 export async function POST(request: NextRequest) {
   try {
     await dbConnect()
@@ -78,10 +83,15 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingUser?.role === "admin") {
-      return NextResponse.json(
-        { success: false, message: "This account is protected and cannot be registered through this form." },
-        { status: 403 },
-      )
+      const isProtectedAdmin = existingUser.email && ADMIN_ALLOWLIST.includes(existingUser.email.toLowerCase())
+      if (isProtectedAdmin) {
+        return NextResponse.json(
+          { success: false, message: "This account is protected and cannot be registered through this form." },
+          { status: 403 },
+        )
+      }
+      // If this record was accidentally promoted, downgrade it and continue
+      existingUser.role = "user"
     }
 
     // Verify referral code exists
