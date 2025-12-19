@@ -155,82 +155,90 @@ export function TeamList({ userId }: TeamListProps) {
   }
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-5 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/60 p-5 shadow-2xl shadow-emerald-500/10">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">Team directory</h2>
-          <p className="text-sm text-muted-foreground">{summary}</p>
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/80">Orbit roster</p>
+          <h2 className="text-2xl font-semibold text-white">Team directory</h2>
+          <p className="text-sm text-slate-400">{summary}</p>
         </div>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
+          className="border border-emerald-400/30 bg-emerald-500/15 text-emerald-100 shadow-lg shadow-emerald-500/20 hover:border-emerald-300/60"
           onClick={() => {
             void mutate()
           }}
           disabled={isRefreshing}
         >
-          {isRefreshing ? "Refreshing..." : "Refresh"}
+          {isRefreshing ? "Refreshing..." : "Refresh list"}
         </Button>
       </div>
 
-      <div className="rounded-xl border border-border/60 bg-card">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {isInitialLoading ? (
-          <TeamListSkeleton />
+          <div className="md:col-span-2 xl:col-span-3">
+            <TeamListSkeleton />
+          </div>
         ) : error ? (
-          <div className="p-6 text-sm text-destructive">{error.message}</div>
+          <div className="md:col-span-2 xl:col-span-3 rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-100">
+            {error.message}
+          </div>
         ) : members.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">
+          <div className="md:col-span-2 xl:col-span-3 rounded-xl border border-dashed border-emerald-400/40 bg-emerald-500/5 p-8 text-center text-sm text-emerald-100">
             No direct referrals yet. Share your referral code to grow your team.
           </div>
         ) : (
-          <ul className="divide-y divide-border/60">
-            {members.map((member, index) => {
-              const createdAt = ensureDate(member.createdAt)
-              const joinedLabel = createdAt
-                ? `Joined ${formatDistanceToNow(createdAt, { addSuffix: true })}`
-                : "Joined date unavailable"
-              const levelValue = ensureNumber(member.level, Number.NaN)
-              const levelLabel = Number.isFinite(levelValue) ? `Level L${levelValue}` : "Level N/A"
-              const depositTotal = ensureNumber(member.depositTotal, 0)
-              const memberId = member._id ?? `member-${index}`
-              const idSuffix =
-                typeof member._id === "string" && member._id.length >= 6
-                  ? member._id.slice(-6)
-                  : "N/A"
-              const isQualified = Boolean(member.qualified)
+          members.map((member, index) => {
+            const createdAt = ensureDate(member.createdAt)
+            const joinedLabel = createdAt
+              ? `Joined ${formatDistanceToNow(createdAt, { addSuffix: true })}`
+              : "Joined date unavailable"
+            const levelValue = ensureNumber(member.level, Number.NaN)
+            const levelLabel = Number.isFinite(levelValue) ? `L${levelValue}` : "N/A"
+            const depositTotal = ensureNumber(member.depositTotal, 0)
+            const memberId = member._id ?? `member-${index}`
+            const idSuffix =
+              typeof member._id === "string" && member._id.length >= 6 ? member._id.slice(-6) : "N/A"
+            const isQualified = Boolean(member.qualified)
 
-              return (
-                <li
-                  key={memberId}
-                  className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium sm:text-base">{member.name ?? "Unnamed member"}</p>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <span>{joinedLabel}</span>
-                      <span className="hidden h-1 w-1 rounded-full bg-border/70 sm:block" aria-hidden />
-                      <span>{levelLabel}</span>
-                      <span className="hidden h-1 w-1 rounded-full bg-border/70 sm:block" aria-hidden />
-                      <span>{formatCurrency(depositTotal)} deposited</span>
+            return (
+              <div
+                key={memberId}
+                className="group relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 shadow-lg shadow-emerald-500/10 transition hover:-translate-y-1 hover:border-emerald-400/50"
+              >
+                <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/10 via-cyan-500/5 to-transparent opacity-0 transition group-hover:opacity-100" />
+                <div className="relative flex items-start justify-between gap-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-100">
+                        {levelLabel}
+                      </span>
+                      <Badge variant={isQualified ? "default" : "secondary"} className="text-[11px]">
+                        {isQualified ? "Qualified" : "Not qualified"}
+                      </Badge>
                     </div>
+                    <p className="text-lg font-semibold text-white">{member.name ?? "Unnamed member"}</p>
+                    <p className="text-xs text-slate-400">{joinedLabel}</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={isQualified ? "default" : "secondary"}>
-                      {isQualified ? "Qualified" : "Not qualified"}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">ID ending in {idSuffix}</span>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+                  <div className="text-right text-xs text-slate-400">ID • {idSuffix}</div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-200">
+                  <span>Deposited</span>
+                  <span className="font-semibold text-emerald-200">{formatCurrency(depositTotal)}</span>
+                </div>
+              </div>
+            )
+          })
         )}
       </div>
 
       {hasMore ? (
-        <div className="flex justify-center">
+        <div className="flex justify-center pt-1">
           <Button
             variant="outline"
+            className="border-emerald-400/40 bg-slate-900/60 text-emerald-100 hover:border-emerald-300/70"
             onClick={() => {
               setPage((current) => current + 1)
             }}
@@ -246,16 +254,23 @@ export function TeamList({ userId }: TeamListProps) {
 
 export function TeamListSkeleton() {
   return (
-    <div className="divide-y divide-border/60">
-      {Array.from({ length: 4 }).map((_, index) => (
-        <div key={index} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-3 w-56" />
-          </div>
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div
+          key={index}
+          className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 shadow-lg shadow-emerald-500/10"
+        >
           <div className="flex items-center gap-3">
-            <Skeleton className="h-6 w-20" />
-            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-8 w-14 rounded-full" />
+            <Skeleton className="h-6 w-32" />
+          </div>
+          <div className="mt-3 space-y-2">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-3 w-28" />
+          </div>
+          <div className="mt-4 flex items-center justify-between">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-5 w-20" />
           </div>
         </div>
       ))}

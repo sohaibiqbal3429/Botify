@@ -4,18 +4,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import {
-  BadgeCheck,
-  CheckCircle,
-  Copy,
-  Key,
-  Loader2,
-  Mail,
-  Phone,
-  Shield,
-  Sparkles,
-  User,
-} from "lucide-react"
+import { BadgeCheck, CheckCircle, Copy, Key, Loader2, Mail, Phone, Sparkles, User } from "lucide-react"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -322,30 +311,36 @@ export default function ProfilePage() {
                   </p>
                 </div>
               </div>
+
               <div className="flex flex-wrap items-center gap-2">
                 {verificationFlags.map((flag) => (
-                  <Badge key={flag.label} variant={flag.active ? "default" : "outline"} className="flex items-center gap-1">
+                  <Badge
+                    key={flag.label}
+                    variant={flag.active ? "default" : "outline"}
+                    className="flex items-center gap-1"
+                  >
                     <BadgeCheck className="h-3.5 w-3.5" />
                     {flag.label}
                   </Badge>
                 ))}
               </div>
             </div>
+
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-slate-800/60 bg-slate-900/60 p-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Deposits</p>
                 <p className="mt-2 text-xl font-semibold text-white">{usd(user?.depositTotal)}</p>
                 <p className="text-xs text-slate-500">
-                  {remainingToActivate > 0
-                    ? `${usd(remainingToActivate)} to reach activation threshold`
-                    : "Activation threshold met"}
+                  {remainingToActivate > 0 ? `${usd(remainingToActivate)} to reach activation threshold` : "Activation threshold met"}
                 </p>
               </div>
+
               <div className="rounded-xl border border-slate-800/60 bg-slate-900/60 p-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Withdrawn</p>
                 <p className="mt-2 text-xl font-semibold text-white">{usd(user?.withdrawTotal)}</p>
                 <p className="text-xs text-slate-500">Total processed withdrawals</p>
               </div>
+
               <div className="rounded-xl border border-slate-800/60 bg-slate-900/60 p-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Earnings</p>
                 <p className="mt-2 text-xl font-semibold text-white">{usd(user?.roiEarnedTotal)}</p>
@@ -367,13 +362,16 @@ export default function ProfilePage() {
               <TabsTrigger value="referral">Referral</TabsTrigger>
             </TabsList>
 
+            {/* ✅ FIXED PROFILE TAB */}
             <TabsContent value="profile" className="mt-6 space-y-4">
               <div className="grid gap-4 lg:grid-cols-[1.2fr,1fr]">
+                {/* LEFT */}
                 <Card className="border-slate-800/70 bg-slate-900/70">
                   <CardHeader>
                     <CardTitle>Profile details</CardTitle>
                     <CardDescription>Update your display name, phone, and avatar.</CardDescription>
                   </CardHeader>
+
                   <CardContent>
                     {profileStatus.error && (
                       <Alert variant="destructive" className="mb-4">
@@ -396,11 +394,14 @@ export default function ProfilePage() {
                             <Input
                               id="name"
                               value={profileData.name}
-                              onChange={(event) => setProfileData((prev) => ({ ...prev, name: event.target.value }))}
+                              onChange={(event) =>
+                                setProfileData((prev) => ({ ...prev, name: event.target.value }))
+                              }
                               required
                             />
                           </div>
                         </div>
+
                         <div className="space-y-2">
                           <Label htmlFor="phone">Phone</Label>
                           <div className="flex items-center gap-2">
@@ -412,7 +413,9 @@ export default function ProfilePage() {
                               placeholder="+15551234567"
                               pattern="^\\+[1-9]\\d{7,14}$"
                               value={profileData.phone}
-                              onChange={(event) => setProfileData((prev) => ({ ...prev, phone: event.target.value }))}
+                              onChange={(event) =>
+                                setProfileData((prev) => ({ ...prev, phone: event.target.value }))
+                              }
                               required
                             />
                             {user?.phoneVerified && <Badge variant="secondary">Verified</Badge>}
@@ -430,37 +433,30 @@ export default function ProfilePage() {
                         </div>
                       </div>
 
-                      <div className="space-y-3">
-                        <Label>Choose your avatar</Label>
+                      <div className="space-y-2">
+                        <Label>Avatar</Label>
                         <RadioGroup
-                          className="grid grid-cols-2 gap-3 md:grid-cols-4"
                           value={profileData.avatar}
-                          onValueChange={(value) => setProfileData((prev) => ({ ...prev, avatar: value }))}
+                          onValueChange={(value) =>
+                            setProfileData((prev) => ({ ...prev, avatar: value }))
+                          }
+                          className="grid grid-cols-2 gap-2 sm:grid-cols-3"
                         >
-                          {PROFILE_AVATAR_OPTIONS.map((option) => (
-                            <Label
-                              key={option.value}
-                              className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border bg-slate-900/60 p-3 transition ${
-                                profileData.avatar === option.value
-                                  ? "border-emerald-400/60 shadow-[0_0_0_1px_rgba(52,211,153,0.5)]"
-                                  : "border-slate-800/70 hover:border-slate-700"
-                              }`}
+                          {PROFILE_AVATAR_OPTIONS.map((opt) => (
+                            <div
+                              key={opt.value}
+                              className="flex items-center gap-2 rounded-xl border border-slate-800/70 bg-slate-950/50 p-2"
                             >
-                              <RadioGroupItem value={option.value} className="sr-only" />
-                              <Image
-                                src={`/avatars/${option.value}.svg`}
-                                alt={option.alt}
-                                width={72}
-                                height={72}
-                                className="h-16 w-16 rounded-full border border-border bg-background"
-                              />
-                              <span className="text-sm font-medium">{option.label}</span>
-                            </Label>
+                              <RadioGroupItem value={opt.value} id={opt.value} />
+                              <Label htmlFor={opt.value} className="text-xs text-slate-200/80">
+                                {opt.label ?? opt.value}
+                              </Label>
+                            </div>
                           ))}
                         </RadioGroup>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap gap-2 pt-2">
                         <Button type="submit" disabled={profileLoading}>
                           {profileLoading ? (
                             <>
@@ -468,74 +464,85 @@ export default function ProfilePage() {
                               Saving...
                             </>
                           ) : (
-                            <>
-                              <Sparkles className="mr-2 h-4 w-4" />
-                              Save changes
-                            </>
+                            "Save changes"
                           )}
                         </Button>
+
                         <Button
                           type="button"
                           variant="outline"
                           onClick={handleVerifyProfile}
-                          disabled={verifyLoading || !profileData.phone}
+                          disabled={verifyLoading}
                         >
                           {verifyLoading ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Verifying
+                              Verifying...
                             </>
                           ) : (
-                            <>
-                              <Shield className="mr-2 h-4 w-4" />
-                              Verify profile
-                            </>
+                            "Verify profile"
                           )}
                         </Button>
                       </div>
+
+                      {verificationStatus.error && (
+                        <Alert variant="destructive" className="mt-3">
+                          <AlertDescription>{verificationStatus.error}</AlertDescription>
+                        </Alert>
+                      )}
+                      {verificationStatus.success && (
+                        <Alert className="mt-3 border-emerald-200 bg-emerald-50 text-emerald-900">
+                          <CheckCircle className="h-4 w-4" />
+                          <AlertDescription>{verificationStatus.success}</AlertDescription>
+                        </Alert>
+                      )}
                     </form>
                   </CardContent>
                 </Card>
 
-                <div className="grid gap-4">
-                  <Card className="border-slate-800/70 bg-gradient-to-br from-emerald-500/10 via-cyan-500/5 to-slate-900/80">
-                    <CardHeader>
-                      <CardTitle>Account health</CardTitle>
-                      <CardDescription>Keep your account in good standing.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-900/80 px-3 py-2">
-                        <div>
-                          <p className="text-sm font-semibold text-white">Status</p>
-                          <p className="text-xs text-slate-400">
-                            {isBlocked ? "Account blocked" : isActiveAccount ? "Active" : "Inactive"}
-                          </p>
-                        </div>
-                        <Badge variant={isBlocked ? "destructive" : "default"}>
-                          {isBlocked ? "Blocked" : isActiveAccount ? "Active" : "Inactive"}
-                        </Badge>
+                {/* RIGHT */}
+                <Card className="border-slate-800/70 bg-gradient-to-br from-emerald-500/10 via-cyan-500/5 to-slate-900/80">
+                  <CardHeader>
+                    <CardTitle>Account health</CardTitle>
+                    <CardDescription>Keep your account in good standing.</CardDescription>
+                  </CardHeader>
+
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-900/80 px-3 py-2">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Status</p>
+                        <p className="text-xs text-slate-400">
+                          {isBlocked ? "Account blocked" : isActiveAccount ? "Active" : "Inactive"}
+                        </p>
                       </div>
-                      <div className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-900/80 px-3 py-2">
-                        <div>
-                          <p className="text-sm font-semibold text-white">Phone</p>
-                          <p className="text-xs text-slate-400">{formatPhoneDisplay(profileData.phone) || "Add phone"}</p>
-                        </div>
-                        <Badge variant={user?.phoneVerified ? "default" : "outline"}>
-                          {user?.phoneVerified ? "Verified" : "Unverified"}
-                        </Badge>
+                      <Badge variant={isBlocked ? "destructive" : "default"}>
+                        {isBlocked ? "Blocked" : isActiveAccount ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-900/80 px-3 py-2">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Phone</p>
+                        <p className="text-xs text-slate-400">
+                          {formatPhoneDisplay(profileData.phone) || "Add phone"}
+                        </p>
                       </div>
-                      <div className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-900/80 px-3 py-2">
-                        <div>
-                          <p className="text-sm font-semibold text-white">Email</p>
-                          <p className="text-xs text-slate-400">{profileData.email}</p>
-                        </div>
-                        <Badge variant={user?.emailVerified ? "default" : "outline"}>
-                          {user?.emailVerified ? "Verified" : "Unverified"}
-                        </Badge>
+                      <Badge variant={user?.phoneVerified ? "default" : "outline"}>
+                        {user?.phoneVerified ? "Verified" : "Unverified"}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-900/80 px-3 py-2">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Email</p>
+                        <p className="text-xs text-slate-400">{profileData.email}</p>
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                      <Badge variant={user?.emailVerified ? "default" : "outline"}>
+                        {user?.emailVerified ? "Verified" : "Unverified"}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
 
@@ -581,6 +588,7 @@ export default function ProfilePage() {
                         required
                       />
                     </div>
+
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="newPassword">New password</Label>
@@ -605,10 +613,17 @@ export default function ProfilePage() {
                         />
                       </div>
                     </div>
+
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="otpCode">Email verification code</Label>
-                        <Button type="button" variant="outline" size="sm" onClick={handleSendPasswordOtp} disabled={otpLoading}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleSendPasswordOtp}
+                          disabled={otpLoading}
+                        >
                           {otpLoading ? (
                             <>
                               <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
@@ -619,6 +634,7 @@ export default function ProfilePage() {
                           )}
                         </Button>
                       </div>
+
                       <Input
                         id="otpCode"
                         inputMode="numeric"
@@ -627,11 +643,16 @@ export default function ProfilePage() {
                         placeholder="123456"
                         value={passwordData.otpCode}
                         onChange={(event) =>
-                          setPasswordData((prev) => ({ ...prev, otpCode: event.target.value.replace(/[^0-9]/g, "") }))
+                          setPasswordData((prev) => ({
+                            ...prev,
+                            otpCode: event.target.value.replace(/[^0-9]/g, ""),
+                          }))
                         }
                         required
                       />
-                      <p className="text-xs text-muted-foreground">We will email a 6-digit code to confirm this change.</p>
+                      <p className="text-xs text-muted-foreground">
+                        We will email a 6-digit code to confirm this change.
+                      </p>
                     </div>
 
                     <Button type="submit" disabled={passwordLoading}>
@@ -670,6 +691,7 @@ export default function ProfilePage() {
                         </Button>
                       </div>
                     </div>
+
                     <div className="space-y-2">
                       <Label>Referral link</Label>
                       <div className="flex gap-2">
@@ -689,6 +711,7 @@ export default function ProfilePage() {
                         {copied && <Badge variant="secondary">Copied</Badge>}
                       </div>
                     </div>
+
                     <div className="rounded-xl border border-slate-800/70 bg-slate-950/70 p-4">
                       <p className="text-sm font-semibold text-white">Tips to boost referrals</p>
                       <ul className="mt-2 space-y-2 text-xs text-slate-400">
@@ -719,6 +742,7 @@ export default function ProfilePage() {
                         </Badge>
                       </div>
                     </div>
+
                     <div className="rounded-xl border border-slate-800/70 bg-slate-900/70 p-4">
                       <div className="flex items-center justify-between">
                         <div>
@@ -730,6 +754,7 @@ export default function ProfilePage() {
                         </Badge>
                       </div>
                     </div>
+
                     <div className="rounded-xl border border-slate-800/70 bg-slate-900/70 p-4">
                       <div className="flex items-center justify-between">
                         <div>
@@ -751,4 +776,3 @@ export default function ProfilePage() {
     </div>
   )
 }
-

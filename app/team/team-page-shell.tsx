@@ -12,6 +12,7 @@ import {
   TeamHierarchySkeleton,
 } from "@/components/team/team-hierarchy-chart"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -211,28 +212,33 @@ function AvailableToClaimCard({
   const unlockLabel = `Level ${unlockLevel}`
 
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <CardTitle className="text-lg">Available to Claim</CardTitle>
-          <p className="text-sm text-muted-foreground">
+    <Card className="overflow-hidden border border-emerald-500/30 bg-gradient-to-br from-slate-900 via-slate-950 to-emerald-950/40 shadow-xl shadow-emerald-500/15">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.08),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(6,182,212,0.12),transparent_40%)]" />
+      <CardHeader className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <CardTitle className="text-xl text-white">Available to Claim</CardTitle>
+          <p className="text-sm text-slate-400">
             {isLocked
-              ? `Team rewards unlock at ${unlockLabel}. Reach ${unlockLabel} to start accumulating claimable earnings.`
+              ? `Team rewards unlock at ${unlockLabel}. Hit ${unlockLabel} to start stacking claimable earnings.`
               : "Review unclaimed team earnings. Claiming will credit the payout amount to your wallet balance."}
           </p>
         </div>
-        <Button onClick={onClaim} disabled={claimDisabled}>
+        <Button
+          onClick={onClaim}
+          disabled={claimDisabled}
+          className="border border-emerald-400/40 bg-emerald-500/15 text-emerald-100 shadow-lg shadow-emerald-500/20 hover:border-emerald-300/60"
+        >
           {isLocked ? `Locked until ${unlockLabel}` : isClaiming ? "Claiming..." : "Claim all"}
         </Button>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
+      <CardContent className="relative overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="border-emerald-500/20 text-slate-300">
               <TableHead className="whitespace-nowrap">Earned</TableHead>
-              <TableHead className="whitespace-nowrap">Source User</TableHead>
+              <TableHead className="whitespace-nowrap">Source</TableHead>
               <TableHead className="whitespace-nowrap">Type</TableHead>
-              <TableHead className="whitespace-nowrap text-right">Base Amount</TableHead>
+              <TableHead className="whitespace-nowrap text-right">Base</TableHead>
               <TableHead className="whitespace-nowrap text-right">Percent</TableHead>
               <TableHead className="whitespace-nowrap text-right">Payout</TableHead>
               <TableHead className="whitespace-nowrap text-right">Action</TableHead>
@@ -253,7 +259,7 @@ function AvailableToClaimCard({
               ))
             ) : !hasItems ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={7} className="py-8 text-center text-sm text-slate-400">
                   {isLocked
                     ? `Reach ${unlockLabel} to start accumulating claimable team rewards.`
                     : "No team earnings are waiting to be claimed right now. New rewards will appear here when your team earns."}
@@ -277,15 +283,23 @@ function AvailableToClaimCard({
                 const rowKey = typeof item.id === "string" && item.id.length > 0 ? item.id : `pending-${index}`
 
                 return (
-                  <TableRow key={rowKey}>
+                  <TableRow key={rowKey} className="border-slate-800/70">
                     <TableCell className="whitespace-nowrap">{createdDisplay}</TableCell>
                     <TableCell className="whitespace-nowrap">{sourceDisplay}</TableCell>
                     <TableCell className="whitespace-nowrap">{typeLabel}</TableCell>
                     <TableCell className="whitespace-nowrap text-right">{formatCurrency(baseAmount)}</TableCell>
                     <TableCell className="whitespace-nowrap text-right">{toPercentDisplay(item.percent)}</TableCell>
-                    <TableCell className="whitespace-nowrap text-right">{formatCurrency(amount)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right text-emerald-200">
+                      {formatCurrency(amount)}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap text-right">
-                      <Button variant="outline" size="sm" onClick={onClaim} disabled={isClaiming || isLocked}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="border border-emerald-400/30 bg-emerald-500/10 text-emerald-100 hover:border-emerald-300/60"
+                        onClick={onClaim}
+                        disabled={isClaiming || isLocked}
+                      >
                         {isLocked ? "Locked" : "Claim"}
                       </Button>
                     </TableCell>
@@ -507,27 +521,44 @@ export default function TeamPageShell() {
   }, [levelData, levelError, levelLoading])
 
   return (
-    <div className="flex min-h-screen flex-col bg-background md:flex-row">
+    <div className="relative flex min-h-screen flex-col bg-slate-950 md:flex-row">
+      <div className="pointer-events-none absolute inset-0 opacity-70">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.14),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(14,165,233,0.12),transparent_40%),radial-gradient(circle_at_50%_100%,rgba(59,130,246,0.12),transparent_38%)]" />
+      </div>
+
       <Sidebar user={sidebarUser} />
 
-      <main className="flex-1 overflow-auto md:ml-64">
-        <div className="space-y-6 p-5 sm:p-6 lg:p-8">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-balance">Team Management</h1>
-            <p className="text-muted-foreground">Monitor your direct referrals and progression in real time.</p>
+      <main className="relative flex-1 overflow-auto md:ml-64">
+        <div className="space-y-7 p-5 sm:p-6 lg:p-8">
+          <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-600/20 via-slate-900 to-cyan-600/15 p-6 shadow-2xl shadow-emerald-500/20">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1">
+                <p className="text-xs uppercase tracking-[0.35em] text-emerald-100">Signal your crew</p>
+                <h1 className="text-3xl font-bold text-white">Team Command</h1>
+                <p className="text-sm text-emerald-50/80">
+                  Track referral health, unlock levels, and claim team earnings in one fresh view.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Badge className="border border-white/20 bg-white/10 text-white">Live sync</Badge>
+                <Badge variant="secondary" className="border border-emerald-300/50 bg-emerald-500/15 text-emerald-50">
+                  Crew mode
+                </Badge>
+              </div>
+            </div>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid h-12 w-full grid-cols-2 rounded-full bg-muted/70 p-1.5">
+            <TabsList className="grid h-12 w-full grid-cols-2 rounded-2xl border border-emerald-500/30 bg-slate-900/70 p-1 shadow-lg shadow-emerald-500/10">
               <TabsTrigger
                 value="structure"
-                className="rounded-full px-4 py-2 text-base font-semibold data-[state=active]:shadow-md"
+                className="rounded-xl px-4 py-2 text-base font-semibold data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500/40 data-[state=active]:to-cyan-500/40 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-emerald-500/25"
               >
                 Team Directory
               </TabsTrigger>
               <TabsTrigger
                 value="levels"
-                className="rounded-full px-4 py-2 text-base font-semibold data-[state=active]:shadow-md"
+                className="rounded-xl px-4 py-2 text-base font-semibold data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500/40 data-[state=active]:to-cyan-500/40 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-emerald-500/25"
               >
                 Levels &amp; Progress
               </TabsTrigger>
@@ -547,7 +578,7 @@ export default function TeamPageShell() {
                   unlockLevel={TEAM_REWARD_UNLOCK_LEVEL}
                 />
               ) : rewardsError ? (
-                <div className="rounded-xl border border-border/60 bg-card p-6 text-sm text-destructive">
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-100">
                   Unable to load rewards summary. Please refresh to try again.
                 </div>
               ) : null}
@@ -567,7 +598,7 @@ export default function TeamPageShell() {
               />
 
               {historyError ? (
-                <div className="rounded-xl border border-border/60 bg-card p-4 text-sm text-destructive">
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
                   We couldn't load the rewards history. Please refresh the page.
                 </div>
               ) : null}
@@ -580,11 +611,11 @@ export default function TeamPageShell() {
                   teamStats={teamStructureData.teamStats ?? null}
                 />
               ) : teamStructureError ? (
-                <div className="rounded-xl border border-border/60 bg-card p-4 text-sm text-destructive">
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
                   Unable to load the team hierarchy. Please try refreshing the page.
                 </div>
               ) : (
-                <div className="rounded-xl border border-border/60 bg-card p-6 text-sm text-muted-foreground">
+                <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-6 text-sm text-emerald-50">
                   Build your network to see a visual hierarchy of how your team is structured.
                 </div>
               )}
@@ -595,12 +626,10 @@ export default function TeamPageShell() {
             <TabsContent value="levels" className="space-y-6">
               {levelContent}
               {activeTab === "levels" && levelValidating && levelData ? (
-                <div className="text-xs text-muted-foreground">
-                  Updating level details...
-                </div>
+                <div className="text-xs text-emerald-100/80">Updating level details...</div>
               ) : null}
               {activeTab === "levels" && levelError && levelData ? (
-                <div className="text-xs text-destructive">
+                <div className="text-xs text-red-200">
                   Unable to refresh level progress right now. Showing your last available data.
                 </div>
               ) : null}
