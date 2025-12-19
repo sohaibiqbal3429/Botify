@@ -49,7 +49,6 @@ const PAGE_TITLE_RULES: Array<{ pattern: RegExp; title: string }> = [
   { pattern: /^\/transactions(?:\/.+)?$/, title: "Activity Timeline" },
   { pattern: /^\/tasks(?:\/.+)?$/, title: "Missions & Quests" },
   { pattern: /^\/team(?:\/.+)?$/, title: "Network Crew" },
-  { pattern: /^\/coins(?:\/.+)?$/, title: "Asset Catalog" },
   { pattern: /^\/support(?:\/.+)?$/, title: "Help Desk" },
   { pattern: /^\/profile(?:\/.+)?$/, title: "Account Center" },
   { pattern: /^\/terms(?:\/.+)?$/, title: "Knowledge Base" },
