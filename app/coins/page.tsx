@@ -217,11 +217,11 @@ export default function CoinsPage() {
               </Button>
             </form>
 
-            <p className="mt-4 text-sm text-muted-foreground">No spam—just alpha when we go live.</p>
+            <p className="mt-4 text-sm text-muted-foreground">No spam - just alpha when we go live.</p>
 
             <div className="mt-10 w-full">
               <CountdownDisplay segments={segments} phase={phase} />
-              {!isReady && <p className="mt-3 text-xs text-muted-foreground">Syncing launch clock with the network…</p>}
+              {!isReady && <p className="mt-3 text-xs text-muted-foreground">Syncing launch clock with the network...
             </div>
           </div>
 
@@ -266,8 +266,7 @@ export default function CoinsPage() {
                 <div>
                   <h2 className="text-2xl font-semibold tracking-tight">Stay listing-ready</h2>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    Tailor alerts to your strategy—filter by chain, sale stage, or exchange partners, and never miss an
-                    allocation window again.
+                    Tailor alerts to your strategy - filter by chain, sale stage, or exchange partners, and never miss an allocation window again.
                   </p>
                 </div>
                 <div className="mt-8 space-y-5">
@@ -332,4 +331,6 @@ export default function CoinsPage() {
     </div>
   )
 }
+
+
 

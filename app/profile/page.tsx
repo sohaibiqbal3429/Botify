@@ -318,7 +318,7 @@ export default function ProfilePage() {
                   <p className="text-xs uppercase tracking-[0.28em] text-emerald-200">Profile</p>
                   <h1 className="text-2xl font-semibold text-white">{user?.name || "Account owner"}</h1>
                   <p className="text-sm text-emerald-100/80">
-                    Tier {toNumber(user?.level, 0)} · {isActiveAccount ? "Active" : "Inactive"}
+                    Tier {toNumber(user?.level, 0)} | {isActiveAccount ? "Active" : "Inactive"}
                   </p>
                 </div>
               </div>
@@ -751,3 +751,4 @@ export default function ProfilePage() {
     </div>
   )
 }
+
