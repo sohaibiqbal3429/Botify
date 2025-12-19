@@ -528,8 +528,8 @@ export default function TeamPageShell() {
 
       <Sidebar user={sidebarUser} />
 
-      <main className="relative flex-1 overflow-auto md:ml-64">
-        <div className="space-y-7 p-5 sm:p-6 lg:p-8">
+      <main className="relative flex-1 w-full overflow-auto md:ml-64">
+        <div className="w-full space-y-7 p-5 sm:p-6 lg:p-8">
           <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-600/20 via-slate-900 to-cyan-600/15 p-6 shadow-2xl shadow-emerald-500/20">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1">

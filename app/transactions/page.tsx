@@ -200,8 +200,8 @@ export default function TransactionsPage() {
     <div className="flex h-screen bg-background">
       <Sidebar user={user} />
 
-      <main className="flex-1 overflow-auto md:ml-64">
-        <div className="p-6">
+      <main className="flex-1 w-full overflow-auto md:ml-64">
+        <div className="w-full p-6">
           <div className="mb-8 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-balance">Transaction History</h1>
@@ -382,4 +382,3 @@ export default function TransactionsPage() {
     </div>
   )
 }
-

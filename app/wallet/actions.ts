@@ -17,10 +17,7 @@ export interface WithdrawFormState {
 }
 
 function isFileLike(value: unknown): value is File {
-  if (!value || typeof value !== "object") {
-    return false
-  }
-
+  if (!value || typeof value !== "object") return false
   const candidate = value as Record<string, unknown>
   return (
     typeof candidate.arrayBuffer === "function" &&
@@ -30,27 +27,27 @@ function isFileLike(value: unknown): value is File {
   )
 }
 
-
-export async function submitDepositAction(_: DepositFormState, formData: FormData): Promise<DepositFormState> {
+export async function submitDepositAction(
+  _: DepositFormState,
+  formData: FormData,
+): Promise<DepositFormState> {
   const cookieStore = await cookies()
   const token = cookieStore.get("auth-token")?.value
-  if (!token) {
-    return { error: "You must be signed in to submit a deposit." }
-  }
+  if (!token) return { error: "You must be signed in to submit a deposit." }
 
   const user = verifyToken(token)
-  if (!user) {
-    return { error: "Session expired. Please sign in again." }
-  }
+  if (!user) return { error: "Session expired. Please sign in again." }
 
   const amountRaw = String(formData.get("amount") ?? "").trim()
-  if (!amountRaw) {
-    return { error: "Enter a valid deposit amount" }
-  }
+  if (!amountRaw) return { error: "Enter a valid deposit amount" }
 
   const amountPattern = /^\d+(?:\.\d{0,2})?$/
   if (!amountPattern.test(amountRaw)) {
-    return { error: amountRaw.includes(".") ? "Amount can have at most 2 decimal places." : "Enter a valid deposit amount" }
+    return {
+      error: amountRaw.includes(".")
+        ? "Amount can have at most 2 decimal places."
+        : "Enter a valid deposit amount",
+    }
   }
 
   const amountValue = Number.parseFloat(amountRaw)
@@ -58,17 +55,9 @@ export async function submitDepositAction(_: DepositFormState, formData: FormDat
   const exchangePlatform = String(formData.get("exchangePlatform") ?? "").trim() || undefined
   const network = String(formData.get("network") ?? "").trim()
 
-  if (!Number.isFinite(amountValue) || amountValue <= 0) {
-    return { error: "Enter a valid deposit amount" }
-  }
-
-  if (amountValue < 50) {
-    return { error: "Amount must be at least $50." }
-  }
-
-  if (!network) {
-    return { error: "Select a deposit network" }
-  }
+  if (!Number.isFinite(amountValue) || amountValue <= 0) return { error: "Enter a valid deposit amount" }
+  if (amountValue < 30) return { error: "Amount must be at least $30." }
+  if (!network) return { error: "Select a deposit network" }
 
   const receiptEntry = formData.get("receipt")
   const receiptFile = isFileLike(receiptEntry) ? receiptEntry : null
@@ -83,18 +72,28 @@ export async function submitDepositAction(_: DepositFormState, formData: FormDat
       receiptFile,
     })
 
-    revalidatePath("/wallet")
+    // ✅ FIX: correct wallet route
+    revalidatePath("/e-wallet")
 
-    return {
-      success: result.message,
-    }
+    return { success: result.message }
   } catch (error: any) {
+    console.error("Deposit submission failed (raw):", {
+      name: error?.name,
+      message: error?.message,
+      stack: error?.stack,
+      cause: error?.cause,
+    })
+
     if (error instanceof DepositSubmissionError) {
       return { error: error.message }
     }
 
-    console.error("Deposit submission failed", error)
-    return { error: "Unable to submit deposit. Please try again." }
+    // ✅ show real message if available (instead of always "Unable...")
+    const msg = typeof error?.message === "string" && error.message.trim()
+      ? error.message
+      : "Unable to submit deposit. Please try again."
+
+    return { error: msg }
   }
 }
 
@@ -105,21 +104,19 @@ function resolveInternalUrl(path: string): string {
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "")
 
   const baseUrl = configuredBase ? configuredBase.replace(/\/$/, "") : "http://localhost:3000"
-
   return `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`
 }
 
-export async function submitWithdrawAction(_: WithdrawFormState, formData: FormData): Promise<WithdrawFormState> {
+export async function submitWithdrawAction(
+  _: WithdrawFormState,
+  formData: FormData,
+): Promise<WithdrawFormState> {
   const cookieStore = await cookies()
   const token = cookieStore.get("auth-token")?.value
-  if (!token) {
-    return { error: "You must be signed in to submit a withdrawal." }
-  }
+  if (!token) return { error: "You must be signed in to submit a withdrawal." }
 
   const user = verifyToken(token)
-  if (!user) {
-    return { error: "Session expired. Please sign in again." }
-  }
+  if (!user) return { error: "Session expired. Please sign in again." }
 
   const amountValue = Number.parseFloat(String(formData.get("amount") ?? ""))
   if (!Number.isFinite(amountValue) || amountValue <= 0) {
@@ -127,9 +124,7 @@ export async function submitWithdrawAction(_: WithdrawFormState, formData: FormD
   }
 
   const walletAddress = String(formData.get("walletAddress") ?? "").trim()
-  if (!walletAddress) {
-    return { error: "Enter or select a wallet address" }
-  }
+  if (!walletAddress) return { error: "Enter or select a wallet address" }
 
   const source = String(formData.get("source") ?? "main") === "earnings" ? "earnings" : "main"
 
@@ -145,11 +140,7 @@ export async function submitWithdrawAction(_: WithdrawFormState, formData: FormD
         "Content-Type": "application/json",
         ...(cookieHeader ? { Cookie: cookieHeader } : {}),
       },
-      body: JSON.stringify({
-        amount: amountValue,
-        walletAddress,
-        source,
-      }),
+      body: JSON.stringify({ amount: amountValue, walletAddress, source }),
       cache: "no-store",
     })
 
@@ -160,11 +151,11 @@ export async function submitWithdrawAction(_: WithdrawFormState, formData: FormD
         data?.error ||
         (Array.isArray(data?.details) && data.details.length > 0 && data.details[0]?.message) ||
         "Withdrawal request failed. Please try again."
-
       return { error: message }
     }
 
-    revalidatePath("/wallet")
+    // ✅ FIX: correct wallet route
+    revalidatePath("/e-wallet")
 
     return {
       success:
@@ -172,8 +163,13 @@ export async function submitWithdrawAction(_: WithdrawFormState, formData: FormD
           ? `Withdrawal request for $${Number(data.transaction.amount).toFixed(2)} submitted successfully.`
           : "Withdrawal request submitted successfully.",
     }
-  } catch (error) {
-    console.error("Withdrawal submission failed", error)
+  } catch (error: any) {
+    console.error("Withdrawal submission failed (raw):", {
+      name: error?.name,
+      message: error?.message,
+      stack: error?.stack,
+      cause: error?.cause,
+    })
     return { error: "Unable to submit withdrawal. Please try again." }
   }
 }

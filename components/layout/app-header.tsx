@@ -1,18 +1,17 @@
 "use client"
 
-import { useMemo, useRef, useState, useCallback } from "react"
+import { useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import { Menu } from "lucide-react"
+import { usePathname } from "next/navigation"
+import { FileText, Menu } from "lucide-react"
 
-import { AUTH_HIDDEN_ROUTES } from "@/components/layout/quick-actions"
+import QuickActions, { AUTH_HIDDEN_ROUTES } from "@/components/layout/quick-actions"
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer"
 import { PRIMARY_NAV_ITEMS } from "@/components/layout/nav-config"
 import { cn } from "@/lib/utils"
 
 export function AppHeader() {
   const pathname = usePathname() ?? "/"
-  const router = useRouter()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -20,14 +19,6 @@ export function AppHeader() {
     () => AUTH_HIDDEN_ROUTES.some((pattern) => pattern.test(pathname)),
     [pathname],
   )
-
-  const handleLogout = useCallback(async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" })
-    } finally {
-      router.push("/auth/login")
-    }
-  }, [router])
 
   if (shouldHide) return null
 
@@ -38,83 +29,84 @@ export function AppHeader() {
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="flex h-16 w-full items-center gap-4 px-3 md:px-6">
-          {/* ✅ MOBILE MENU BUTTON (must be here) */}
-          <button
-            ref={menuButtonRef}
-            type="button"
-            className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-800/70 bg-slate-900 text-slate-100 transition hover:border-cyan-400/60 hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 md:hidden"
-            aria-label="Open menu"
-            aria-expanded={drawerOpen}
-            aria-controls="mobile-drawer"
-            onClick={() => setDrawerOpen(true)}
-          >
-            <Menu className="h-5 w-5" aria-hidden />
-          </button>
+          {/* Left: brand & mobile trigger */}
+          <div className="flex items-center gap-3 whitespace-nowrap">
+            <button
+              ref={menuButtonRef}
+              type="button"
+              className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-800/70 bg-slate-900 text-slate-100 transition hover:border-cyan-400/60 hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 md:hidden"
+              aria-label="Open menu"
+              aria-expanded={drawerOpen}
+              aria-controls="mobile-drawer"
+              onClick={() => setDrawerOpen(true)}
+            >
+              <Menu className="h-5 w-5" aria-hidden />
+            </button>
 
-          {/* ✅ LOGO */}
-          <Link href="/" className="group flex items-center gap-3" prefetch>
-            <div className="relative flex size-11 items-center justify-center rounded-xl border border-slate-800/70 bg-gradient-to-br from-emerald-400/20 via-cyan-400/10 to-blue-500/10 text-cyan-200 shadow-lg shadow-emerald-500/15 transition group-hover:border-cyan-300/70 group-hover:text-white">
-              <span className="text-lg font-black drop-shadow">5G</span>
-              <span className="absolute -bottom-1 left-1 h-1 w-6 rounded-full bg-emerald-400/70" />
-            </div>
-            <div className="leading-tight">
-              <span className="text-[11px] uppercase tracking-[0.28em] text-emerald-200/80">
-                Signal grid
-              </span>
-              <div className="flex items-center gap-2 text-lg font-semibold text-slate-50">
-                5gbotify
-                <span className="flex items-center gap-1 rounded-md bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase text-emerald-200">
-                  live
-                </span>
-              </div>
-            </div>
-          </Link>
+            <Link href="/" className="group flex items-center gap-3" prefetch>
+             
+             <div className="leading-tight">
+  <div className="flex items-center gap-2">
+    <span className="text-[10px] font-medium uppercase tracking-[0.42em] text-slate-400">
+      Signal Grid
+    </span>
+    <span className="h-1 w-1 rounded-full bg-emerald-300/70" />
+    <span className="text-[10px] font-medium uppercase tracking-[0.34em] text-slate-500">
+      Beta
+    </span>
+  </div>
 
-          {/* ✅ DESKTOP NAV */}
-          <nav className="hidden flex-1 items-center gap-1 md:flex">
-            {PRIMARY_NAV_ITEMS.map((item) => {
-              const isLogout = item.href === "/logout"
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+  <div className="mt-1 flex items-baseline gap-2">
+    <span className="text-lg font-semibold tracking-tight text-white">
+      5GBOTIFY
+    </span>
+    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/15 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200">
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+      Live
+    </span>
+  </div>
+</div>
 
-              if (isLogout) {
+            </Link>
+          </div>
+
+          {/* Center: nav links */}
+          <nav className="hidden md:flex md:flex-1 md:justify-center">
+            <div className="flex flex-1 items-center justify-center gap-4 overflow-x-auto whitespace-nowrap md:gap-6">
+              {PRIMARY_NAV_ITEMS.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
                 return (
-                  <button
+                  <Link
                     key={item.href}
-                    type="button"
-                    onClick={() => void handleLogout()}
+                    href={item.href}
                     className={cn(
                       "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
-                      "text-slate-300 hover:-translate-y-[1px] hover:bg-slate-800/60 hover:text-white",
+                      isActive
+                        ? "bg-gradient-to-r from-cyan-500/20 to-emerald-400/20 text-white shadow-inner shadow-cyan-500/10"
+                        : "text-slate-300 hover:-translate-y-[1px] hover:bg-slate-800/60 hover:text-white",
                     )}
+                    aria-current={isActive ? "page" : undefined}
                   >
                     <item.icon className="h-4 w-4" aria-hidden />
                     <span>{item.name}</span>
-                  </button>
+                  </Link>
                 )
-              }
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
-                    isActive
-                      ? "bg-gradient-to-r from-cyan-500/20 to-emerald-400/20 text-white shadow-inner shadow-cyan-500/10"
-                      : "text-slate-300 hover:-translate-y-[1px] hover:bg-slate-800/60 hover:text-white",
-                  )}
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  <item.icon className="h-4 w-4" aria-hidden />
-                  <span>{item.name}</span>
-                </Link>
-              )
-            })}
+              })}
+            </div>
           </nav>
 
-          <div className="ml-auto flex items-center gap-3" />
+          {/* Right: actions */}
+          <div className="ml-auto hidden items-center gap-3 whitespace-nowrap md:flex">
+            <Link
+              href="/terms"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-800/70 bg-slate-900/70 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-cyan-400/60 hover:text-white"
+            >
+              <FileText className="h-4 w-4" aria-hidden />
+              <span>Knowledge Base</span>
+            </Link>
+            <QuickActions variant="desktop" />
+          </div>
         </div>
       </header>
 
