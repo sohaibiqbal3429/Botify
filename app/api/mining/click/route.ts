@@ -13,6 +13,17 @@ import { MiningActionError, performMiningClick } from "@/lib/services/mining"
 
 export const runtime = "nodejs"
 
+function addRewardMessage<T extends { status: string; result?: Record<string, unknown> | null }>(status: T): T {
+  if (status.status !== "completed") return status
+  return {
+    ...status,
+    result: {
+      message: "Rewarded",
+      ...(status.result ?? {}),
+    },
+  }
+}
+
 const DEPENDENCY_TIMEOUT_MS = Number(process.env.MINING_CLICK_DEP_TIMEOUT_MS ?? 5000)
 const INLINE_OPERATION_TIMEOUT_MS = Number(process.env.MINING_CLICK_INLINE_TIMEOUT_MS ?? 8000)
 
@@ -97,21 +108,20 @@ export async function POST(request: NextRequest) {
         "perform-mining",
       )
 
+      const status = addRewardMessage({
+        status: "completed" as const,
+        idempotencyKey,
+        userId: user.userId,
+        requestedAt,
+        updatedAt: new Date().toISOString(),
+        result,
+      })
+
       return json(
         {
           idempotencyKey,
           statusUrl: makeStatusUrl(), // ✅ include for consistency
-          status: {
-            status: "completed" as const,
-            idempotencyKey,
-            userId: user.userId,
-            requestedAt,
-            updatedAt: new Date().toISOString(),
-            result: {
-              ...result,
-              message: "Rewarded",
-            },
-          },
+          status,
         },
         { status: 200 },
         { outcome: "inline_completed" },
@@ -151,19 +161,21 @@ export async function POST(request: NextRequest) {
       const headers: Record<string, string> = { "Cache-Control": "no-store" }
       if (existing.queueDepth !== undefined) headers["X-Queue-Depth"] = String(existing.queueDepth)
 
+      const normalized = addRewardMessage(existing)
+
       const statusCode =
-        existing.status === "completed"
+        normalized.status === "completed"
           ? 200
-          : existing.status === "failed"
-            ? existing.error?.retryable
+          : normalized.status === "failed"
+            ? normalized.error?.retryable
               ? 503
               : 409
             : 202
 
       return json(
-        { status: existing, statusUrl: makeStatusUrl(), idempotencyKey },
+        { status: normalized, statusUrl: makeStatusUrl(), idempotencyKey },
         { status: statusCode, headers },
-        { outcome: `existing_${existing.status}` },
+        { outcome: `existing_${normalized.status}` },
       )
     }
 
@@ -179,10 +191,12 @@ export async function POST(request: NextRequest) {
     const headers: Record<string, string> = { "Cache-Control": "no-store" }
     if (status.queueDepth !== undefined) headers["X-Queue-Depth"] = String(status.queueDepth)
 
+    const normalized = addRewardMessage(status)
+
     return json(
-      { status, statusUrl: makeStatusUrl(), idempotencyKey },
-      { status: status.status === "completed" ? 200 : 202, headers },
-      { outcome: status.status },
+      { status: normalized, statusUrl: makeStatusUrl(), idempotencyKey },
+      { status: normalized.status === "completed" ? 200 : 202, headers },
+      { outcome: normalized.status },
     )
   } catch (err: any) {
     console.error("[mining/click] enqueue failed:", err)
