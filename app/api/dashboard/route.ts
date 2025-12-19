@@ -10,6 +10,7 @@ import Transaction from "@/models/Transaction"
 import { getUserFromRequest } from "@/lib/auth"
 import { hasQualifiedDeposit } from "@/lib/utils/leveling"
 import { getClaimableTeamRewardTotal } from "@/lib/services/team-earnings"
+import { hasReachedROICap } from "@/lib/utils/referral"
 
 function ensureObjectId(value: mongoose.Types.ObjectId | string) {
   if (value instanceof mongoose.Types.ObjectId) {
@@ -125,9 +126,19 @@ export async function GET(request: NextRequest) {
 
     const now = new Date()
     const nextEligibleAt = miningSession.nextEligibleAt ?? now
+    const timeLeftSeconds = Math.max(
+      0,
+      Math.ceil((nextEligibleAt.getTime() - now.getTime()) / 1000),
+    )
     const minDeposit = settings?.gating?.minDeposit ?? 30
     const hasMinimumDeposit = (user.depositTotal ?? 0) >= minDeposit
     const canMine = hasMinimumDeposit && now >= nextEligibleAt
+    const roiCapSetting = settings?.mining?.roiCap ?? 3
+    const roiCapReached = hasReachedROICap(
+      user.roiEarnedTotal ?? 0,
+      user.depositTotal ?? 0,
+      roiCapSetting,
+    )
 
     const teamRewardsAvailable = claimableTeamRewards
     const teamRewardToday = await getDailyTeamRewardTotal(userObjectId, now)
@@ -150,7 +161,10 @@ export async function GET(request: NextRequest) {
         canMine,
         requiresDeposit: !hasMinimumDeposit,
         minDeposit,
-        nextEligibleAt: nextEligibleAt.toISOString(),
+        roiCapReached,
+        timeLeft: timeLeftSeconds,
+        nextEligibleAt: nextEligibleAt?.toISOString?.() ?? null,
+        lastClickAt: miningSession.lastClickAt?.toISOString?.() ?? null,
         earnedInCycle: miningSession.earnedInCycle ?? 0,
       },
       user: {

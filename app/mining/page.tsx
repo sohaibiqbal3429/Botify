@@ -37,10 +37,14 @@ export default async function MiningPage() {
 
   const fallbackMining = {
     canMine: false,
-    nextEligibleAt: "",
+    nextEligibleAt: null as string | null,
+    lastClickAt: null as string | null,
+    timeLeft: 0,
     earnedInCycle: 0,
     totalClicks: 0,
     requiresDeposit: false,
+    minDeposit: 0,
+    roiCapReached: false,
     userStats: { roiProgress: 0 },
     miningSettings: { dailyProfitPercent: 0 },
   }
@@ -171,4 +175,3 @@ export default async function MiningPage() {
     </div>
   )
 }
-
