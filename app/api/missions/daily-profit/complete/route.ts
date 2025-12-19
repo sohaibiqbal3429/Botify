@@ -1,4 +1,3 @@
-import mongoose from "mongoose"
 import { type NextRequest, NextResponse } from "next/server"
 
 import { getUserFromRequest } from "@/lib/auth"
@@ -79,101 +78,85 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const sessionDb = await mongoose.startSession()
   let rewardAmount = 0
   let newBalance = 0
   let nextEligibleAt: Date | null = null
 
   try {
-    await sessionDb.withTransaction(async () => {
-      const balance =
-        (await Balance.findOne({ userId: user._id }).session(sessionDb)) ||
-        (await Balance.create(
-          [
-            {
-              userId: user._id,
-              current: 0,
-              totalBalance: 0,
-              totalEarning: 0,
-              lockedCapital: 0,
-              lockedCapitalLots: [],
-              staked: 0,
-              pendingWithdraw: 0,
-              teamRewardsAvailable: 0,
-              teamRewardsClaimed: 0,
-              luckyDrawCredits: 0,
-            },
-          ],
-          { session: sessionDb },
-        ).then((docs) => docs[0]))
+    const balance =
+      (await Balance.findOne({ userId: user._id })) ||
+      (await Balance.create({
+        userId: user._id,
+        current: 0,
+        totalBalance: 0,
+        totalEarning: 0,
+        lockedCapital: 0,
+        lockedCapitalLots: [],
+        staked: 0,
+        pendingWithdraw: 0,
+        teamRewardsAvailable: 0,
+        teamRewardsClaimed: 0,
+        luckyDrawCredits: 0,
+      }))
 
-      const currentBalance = Number(balance.current ?? 0)
-      rewardAmount = roundCurrency(currentBalance * REWARD_PCT)
-      nextEligibleAt = new Date(now.getTime() + COOLDOWN_MS)
+    const currentBalance = Number(balance.current ?? 0)
+    rewardAmount = roundCurrency(currentBalance * REWARD_PCT)
+    nextEligibleAt = new Date(now.getTime() + COOLDOWN_MS)
 
-      const updateResult = await User.updateOne(
-        {
-          _id: user._id,
-          $or: [
-            { dailyProfitNextEligibleAt: { $lte: now } },
-            { dailyProfitNextEligibleAt: null },
-            { dailyProfitNextEligibleAt: { $exists: false } },
-          ],
-        },
-        {
-          $set: {
-            dailyProfitNextEligibleAt: nextEligibleAt,
-            dailyProfitLastClaimedAt: now,
-            dailyProfitLastRewardAmount: rewardAmount,
-          },
-        },
-        { session: sessionDb },
-      )
-
-      if (updateResult.matchedCount === 0) {
-        const existingUser = await User.findById(user._id).session(sessionDb)
-        const next = existingUser?.dailyProfitNextEligibleAt ?? nextEligibleAt ?? new Date(now.getTime() + COOLDOWN_MS)
-        throw new CooldownError(next)
-      }
-
-      const balanceBefore = currentBalance
-      newBalance = roundCurrency(balanceBefore + rewardAmount)
-
-      balance.current = newBalance
-      balance.totalBalance = roundCurrency(Number(balance.totalBalance ?? 0) + rewardAmount)
-      balance.totalEarning = roundCurrency(Number(balance.totalEarning ?? 0) + rewardAmount)
-      await balance.save({ session: sessionDb })
-
-      const meta: Record<string, unknown> = {
-        source: MISSION_SOURCE,
-        balanceBefore,
-        balanceAfter: newBalance,
-        rewardPct: REWARD_PCT * 100,
-        description: "Daily Profit Mission reward",
-        nextEligibleAt: nextEligibleAt.toISOString(),
-      }
-
-      if (idempotencyKey) {
-        meta.idempotencyKey = idempotencyKey
-      }
-
-      await Transaction.create(
-        [
-          {
-            userId: user._id,
-            type: "missionReward",
-            amount: rewardAmount,
-            status: "approved",
-            userEmail: user.email ?? undefined,
-            meta,
-          },
+    const updateResult = await User.updateOne(
+      {
+        _id: user._id,
+        $or: [
+          { dailyProfitNextEligibleAt: { $lte: now } },
+          { dailyProfitNextEligibleAt: null },
+          { dailyProfitNextEligibleAt: { $exists: false } },
         ],
-        { session: sessionDb },
-      )
+      },
+      {
+        $set: {
+          dailyProfitNextEligibleAt: nextEligibleAt,
+          dailyProfitLastClaimedAt: now,
+          dailyProfitLastRewardAmount: rewardAmount,
+        },
+      },
+    )
+
+    if (updateResult.matchedCount === 0) {
+      const existingUser = await User.findById(user._id)
+      const next = existingUser?.dailyProfitNextEligibleAt ?? nextEligibleAt ?? new Date(now.getTime() + COOLDOWN_MS)
+      throw new CooldownError(next)
+    }
+
+    const balanceBefore = currentBalance
+    newBalance = roundCurrency(balanceBefore + rewardAmount)
+
+    balance.current = newBalance
+    balance.totalBalance = roundCurrency(Number(balance.totalBalance ?? 0) + rewardAmount)
+    balance.totalEarning = roundCurrency(Number(balance.totalEarning ?? 0) + rewardAmount)
+    await balance.save()
+
+    const meta: Record<string, unknown> = {
+      source: MISSION_SOURCE,
+      balanceBefore,
+      balanceAfter: newBalance,
+      rewardPct: REWARD_PCT * 100,
+      description: "Daily Profit Mission reward",
+      nextEligibleAt: nextEligibleAt.toISOString(),
+    }
+
+    if (idempotencyKey) {
+      meta.idempotencyKey = idempotencyKey
+    }
+
+    await Transaction.create({
+      userId: user._id,
+      type: "missionReward",
+      amount: rewardAmount,
+      status: "approved",
+      userEmail: user.email ?? undefined,
+      meta,
     })
   } catch (error) {
-    await sessionDb.endSession()
-
     if (error instanceof CooldownError) {
       const retrySeconds = Math.max(1, Math.ceil((error.nextEligibleAt.getTime() - now.getTime()) / 1000))
       return NextResponse.json(
@@ -193,8 +176,6 @@ export async function POST(request: NextRequest) {
     console.error("Daily profit mission error", error)
     return NextResponse.json({ error: "Unable to complete mission" }, { status: 500 })
   }
-
-  await sessionDb.endSession()
 
   return NextResponse.json({
     rewardAmount,
