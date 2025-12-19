@@ -1,4 +1,3 @@
-// @ts-nocheck
 import assert from "node:assert/strict"
 import test from "node:test"
 import mongoose from "mongoose"
@@ -394,6 +393,3 @@ test("L2 conditionality respects depositor status at time of deposit", async () 
   const l2Total = await sumPayouts({ type: "DEPOSIT_L2", receiverUserId: l2._id })
   assert.equal(Number(l2Total.toFixed(4)), Number((100 * DEPOSIT_L2_PERCENT_ACTIVE).toFixed(4)))
 })
-// @ts-nocheck
-// @ts-nocheck
-// @ts-nocheck

@@ -35,32 +35,15 @@ export default async function MiningPage() {
     redirect("/auth/login")
   }
 
-  const fallbackMining = {
-    canMine: false,
-    nextEligibleAt: "",
-    earnedInCycle: 0,
-    totalClicks: 0,
-    requiresDeposit: false,
-    userStats: { roiProgress: 0 },
-    miningSettings: { dailyProfitPercent: 0 },
-  }
-
-  const normalizedMiningStatus = {
-    ...fallbackMining,
-    ...(miningStatus ?? {}),
-    userStats: { ...fallbackMining.userStats, ...(miningStatus?.userStats ?? {}) },
-    miningSettings: { ...fallbackMining.miningSettings, ...(miningStatus?.miningSettings ?? {}) },
-  }
-
   const overviewStats = {
-    totalClicks: normalizedMiningStatus.totalClicks ?? 0,
-    todayMined: normalizedMiningStatus.earnedInCycle ?? 0,
-    efficiency: Math.min(Math.round(normalizedMiningStatus.userStats?.roiProgress ?? 0), 100),
+    totalClicks: miningStatus.totalClicks,
+    todayMined: miningStatus.earnedInCycle,
+    efficiency: Math.min(Math.round(miningStatus.userStats.roiProgress), 100),
     rank: 0,
     totalMiners: 0,
   }
 
-  const dailyProfitPercent = normalizedMiningStatus.miningSettings?.dailyProfitPercent ?? 0
+  const dailyProfitPercent = miningStatus.miningSettings.dailyProfitPercent
   const dailyProfitPreview = multiplyAmountByPercent(100, dailyProfitPercent)
 
   return (
@@ -76,7 +59,7 @@ export default async function MiningPage() {
             </p>
           </div>
 
-          <MiningWidget mining={normalizedMiningStatus} />
+          <MiningWidget mining={miningStatus} />
 
           {/* ---- Cards ---- */}
           <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -159,7 +142,7 @@ export default async function MiningPage() {
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">
                   <div className="font-semibold text-lg">
-                    ${walletContext.stats?.currentBalance?.toFixed?.(2) ?? "0.00"}
+                    ${walletContext.stats.currentBalance.toFixed(2)}
                   </div>
                   <div className="text-muted-foreground">Available balance</div>
                 </div>

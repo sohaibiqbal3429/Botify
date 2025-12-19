@@ -1,4 +1,3 @@
-// @ts-nocheck
 import assert from "node:assert/strict"
 import test, { mock } from "node:test"
 
@@ -303,6 +302,3 @@ test("send-otp exposes SMTP debug info in non-production environments", async ()
     Object.assign(process.env, previousEnv)
   }
 })
-// @ts-nocheck
-// @ts-nocheck
-// @ts-nocheck

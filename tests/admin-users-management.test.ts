@@ -1,4 +1,3 @@
-// @ts-nocheck
 import assert from "node:assert/strict"
 import test from "node:test"
 
@@ -174,6 +173,3 @@ test("profile avatar updates persist through the profile API", async () => {
   const refreshedUser = await User.findById(user._id)
   assert.equal(refreshedUser?.profileAvatar, newAvatar)
 })
-// @ts-nocheck
-// @ts-nocheck
-// @ts-nocheck

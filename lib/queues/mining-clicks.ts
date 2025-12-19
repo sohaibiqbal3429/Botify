@@ -16,12 +16,7 @@ const hasRedis = isRedisEnabled()
 
 const queueOptions = hasRedis
   ? {
-      connection: {
-        url: process.env.REDIS_URL!,
-        maxRetriesPerRequest: 1,
-        connectTimeout: Number(process.env.REDIS_CONNECT_TIMEOUT_MS ?? 2000),
-        commandTimeout: Number(process.env.REDIS_COMMAND_TIMEOUT_MS ?? 3000),
-      },
+      connection: { url: process.env.REDIS_URL!, maxRetriesPerRequest: null },
       defaultJobOptions: {
         removeOnComplete: { count: 1000, age: 3600 },
         removeOnFail: { count: 2000, age: 86400 },

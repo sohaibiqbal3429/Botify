@@ -1,221 +1,179 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { getUserFromRequest } from "@/lib/auth"
-import { enforceUnifiedRateLimit, getRateLimitContext } from "@/lib/rate-limit/unified"
-import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
+import { isRedisEnabled } from "@/lib/redis"
 import {
-  getMiningRequestStatus,
   enqueueMiningRequest,
+  getMiningRequestStatus,
   isMiningQueueEnabled,
-  MiningStatusUnavailableError,
+  MINING_STATUS_TTL_MS,
+  type MiningRequestStatus,
 } from "@/lib/services/mining-queue"
 import { MiningActionError, performMiningClick } from "@/lib/services/mining"
+import { recordMiningMetrics } from "@/lib/services/mining-metrics"
+import {
+  enforceUnifiedRateLimit,
+  getClientIp,
+  getRateLimitContext,
+} from "@/lib/rate-limit/unified"
+import { recordRequestLatency, trackRequestRate } from "@/lib/observability/request-metrics"
 
-export const runtime = "nodejs"
+function buildStatusResponse(
+  status: MiningRequestStatus,
+  request: NextRequest,
+): NextResponse<{ status: MiningRequestStatus; statusUrl: string }> {
+  const statusUrl = new URL("/api/mining/click/status", request.url)
+  statusUrl.searchParams.set("key", status.idempotencyKey)
 
-function addRewardMessage<T extends { status: string; result?: Record<string, unknown> | null }>(status: T): T {
-  if (status.status !== "completed") return status
-  return {
-    ...status,
-    result: {
-      message: "Rewarded",
-      ...(status.result ?? {}),
-    },
+  let statusCode = 202
+  const headers: Record<string, string> = { "Cache-Control": "no-store" }
+
+  if (status.status === "queued" || status.status === "processing") {
+    if (status.queueDepth !== undefined) {
+      headers["X-Queue-Depth"] = String(status.queueDepth)
+    }
+  } else if (status.status === "completed") {
+    statusCode = 200
+    headers["Cache-Control"] = `private, max-age=0, s-maxage=${Math.floor(
+      MINING_STATUS_TTL_MS / 1000,
+    )}`
+  } else {
+    statusCode = status.error?.retryable ? 503 : 409
+    if (status.error?.retryAfterMs) {
+      const retrySeconds = Math.max(1, Math.ceil(status.error.retryAfterMs / 1000))
+      headers["Retry-After"] = retrySeconds.toString()
+      const backoffSeconds = Math.min(600, Math.pow(2, Math.ceil(Math.log2(retrySeconds))))
+      headers["X-Backoff-Hint"] = backoffSeconds.toString()
+    }
   }
-}
 
-const DEPENDENCY_TIMEOUT_MS = Number(process.env.MINING_CLICK_DEP_TIMEOUT_MS ?? 5000)
-const INLINE_OPERATION_TIMEOUT_MS = Number(process.env.MINING_CLICK_INLINE_TIMEOUT_MS ?? 8000)
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timeoutId: NodeJS.Timeout
-  const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(`TIMEOUT:${label}`)), ms)
-  })
-
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId))
-}
-
-function isTimeoutError(error: unknown): boolean {
-  return error instanceof Error && error.message?.startsWith("TIMEOUT:")
+  return NextResponse.json(
+    { status, statusUrl: statusUrl.toString() },
+    {
+      status: statusCode,
+      headers,
+    },
+  )
 }
 
 export async function POST(request: NextRequest) {
   const startedAt = Date.now()
   const path = new URL(request.url).pathname
-  const rateContext = getRateLimitContext(request)
+  const rateLimitContext = getRateLimitContext(request)
   trackRequestRate("backend", { path })
 
   const respond = (response: NextResponse, tags: Record<string, string | number> = {}) => {
-    recordRequestLatency("backend", Date.now() - startedAt, { path, status: response.status, ...tags })
-    response.headers.set("Cache-Control", "no-store")
+    recordRequestLatency("backend", Date.now() - startedAt, {
+      path,
+      status: response.status,
+      ...tags,
+    })
     return response
   }
 
-  const json = (body: any, init?: ResponseInit, tags?: Record<string, string | number>) =>
-    respond(NextResponse.json(body, init), tags)
-
-  const rateDecision = await enforceUnifiedRateLimit("backend", rateContext, { path })
+  const rateDecision = await enforceUnifiedRateLimit("backend", rateLimitContext, { path })
   if (!rateDecision.allowed && rateDecision.response) {
     return respond(rateDecision.response, { outcome: "rate_limited" })
   }
 
-  const user = getUserFromRequest(request)
-  if (!user) {
-    return json({ error: "Unauthorized" }, { status: 401 }, { outcome: "unauthorized" })
-  }
-
-  const queueEnabled = isMiningQueueEnabled()
-
-  let idempotencyKey = request.headers.get("Idempotency-Key")?.trim()
-
+  const idempotencyKey = request.headers.get("idempotency-key")?.trim()
   if (!idempotencyKey) {
+    return respond(
+      NextResponse.json({ error: "Idempotency-Key header is required" }, { status: 400 }),
+      { outcome: "missing_idempotency" },
+    )
+  }
+
+  const userPayload = getUserFromRequest(request)
+  if (!userPayload) {
+    return respond(
+      NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      { outcome: "unauthorized" },
+    )
+  }
+
+  const ip = getClientIp(request)
+  const queueAvailable = isRedisEnabled() && isMiningQueueEnabled()
+
+  // Helper to perform mining immediately and return a completed status
+  const processDirect = async (successOutcome: string) => {
     try {
-      const contentType = request.headers.get("content-type")?.toLowerCase() ?? ""
-      if (contentType.includes("application/json")) {
-        const body = await request.json().catch(() => null)
-        const bodyKey = typeof body?.idempotencyKey === "string" ? body.idempotencyKey.trim() : ""
-        if (bodyKey) idempotencyKey = bodyKey
-      }
-    } catch {
-      // ignore body parse errors
-    }
-  }
+      const requestedAt = new Date()
+      const result = await performMiningClick(userPayload.userId, { idempotencyKey })
+      const completedAt = new Date()
 
-  if (!idempotencyKey) {
-    const today = new Date().toISOString().slice(0, 10)
-    idempotencyKey = `mine:${user.userId}:${today}`
-  }
-
-  // ✅ FIX: build statusUrl from the current route path
-  const makeStatusUrl = () => {
-    const current = new URL(request.url)
-    const u = new URL(request.url)
-
-    // If POST is at ".../mining/click", status is at ".../mining/click/status"
-    u.pathname = current.pathname.replace(/\/$/, "") + "/status"
-    u.searchParams.set("key", idempotencyKey!)
-    return u.toString()
-  }
-
-  if (!queueEnabled) {
-    const requestedAt = new Date().toISOString()
-
-    try {
-      const result = await withTimeout(
-        performMiningClick(user.userId, { idempotencyKey }),
-        INLINE_OPERATION_TIMEOUT_MS,
-        "perform-mining",
-      )
-
-      const status = addRewardMessage({
-        status: "completed" as const,
-        idempotencyKey,
-        userId: user.userId,
-        requestedAt,
-        updatedAt: new Date().toISOString(),
-        result,
+      await recordMiningMetrics({
+        processed: 1,
+        profitTotal: result.profit,
+        roiCapReached: result.roiCapReached ? 1 : 0,
       })
 
-      return json(
-        {
-          idempotencyKey,
-          statusUrl: makeStatusUrl(), // ✅ include for consistency
-          status,
+      const status: MiningRequestStatus = {
+        status: "completed",
+        idempotencyKey,
+        userId: userPayload.userId,
+        requestedAt: requestedAt.toISOString(),
+        updatedAt: completedAt.toISOString(),
+        sourceIp: ip,
+        userAgent: request.headers.get("user-agent"),
+        queueDepth: 0,
+        result: {
+          ...result,
+          // This is what the UI should show when the user clicks "Start Mining"
+          message: "Mining rewarded",
+          completedAt: completedAt.toISOString(),
         },
-        { status: 200 },
-        { outcome: "inline_completed" },
-      )
-    } catch (err: any) {
-      if (isTimeoutError(err)) {
-        return json(
-          {
-            error: "Mining service is responding slowly. Please retry shortly.",
-            idempotencyKey,
-          },
-          { status: 503, headers: { "Retry-After": "3" } },
-          { outcome: "inline_timeout" },
+      }
+
+      return respond(buildStatusResponse(status, request), { outcome: successOutcome })
+    } catch (error) {
+      if (error instanceof MiningActionError) {
+        return respond(
+          NextResponse.json({ error: error.message }, { status: error.status }),
+          { outcome: "mining_error" },
         )
       }
 
-      const status = err instanceof MiningActionError ? err.status ?? 400 : 500
-      return json(
-        {
-          error: err instanceof MiningActionError ? err.message : "Unable to start mining",
-          detail: err?.message ?? String(err),
-          idempotencyKey,
-        },
-        { status },
-        { outcome: "inline_error" },
+      console.error("Mining click processing error", error)
+      return respond(
+        NextResponse.json(
+          { error: "Unable to process mining request" },
+          { status: 500 },
+        ),
+        { outcome: "processing_failure" },
       )
     }
   }
 
+  // If queue is disabled/unavailable, just process immediately.
+  if (!queueAvailable) {
+    return processDirect("completed_no_queue")
+  }
+
+  const existingStatus = await getMiningRequestStatus(idempotencyKey)
+  if (existingStatus) {
+    if (existingStatus.userId !== userPayload.userId) {
+      return respond(
+        NextResponse.json({ error: "Idempotency key belongs to another user" }, { status: 409 }),
+        { outcome: "idempotency_conflict" },
+      )
+    }
+
+    return respond(buildStatusResponse(existingStatus, request), { outcome: "duplicate" })
+  }
+
   try {
-    const existing = await withTimeout(
-      getMiningRequestStatus(idempotencyKey),
-      DEPENDENCY_TIMEOUT_MS,
-      "get-status",
-    )
-    if (existing && existing.userId === user.userId) {
-      const headers: Record<string, string> = { "Cache-Control": "no-store" }
-      if (existing.queueDepth !== undefined) headers["X-Queue-Depth"] = String(existing.queueDepth)
+    const enqueueResult = await enqueueMiningRequest({
+      userId: userPayload.userId,
+      idempotencyKey,
+      sourceIp: ip,
+      userAgent: request.headers.get("user-agent"),
+    })
 
-      const normalized = addRewardMessage(existing)
-
-      const statusCode =
-        normalized.status === "completed"
-          ? 200
-          : normalized.status === "failed"
-            ? normalized.error?.retryable
-              ? 503
-              : 409
-            : 202
-
-      return json(
-        { status: normalized, statusUrl: makeStatusUrl(), idempotencyKey },
-        { status: statusCode, headers },
-        { outcome: `existing_${normalized.status}` },
-      )
-    }
-
-    const { status } = await withTimeout(
-      enqueueMiningRequest({
-        userId: user.userId,
-        idempotencyKey,
-      }),
-      DEPENDENCY_TIMEOUT_MS,
-      "enqueue",
-    )
-
-    const headers: Record<string, string> = { "Cache-Control": "no-store" }
-    if (status.queueDepth !== undefined) headers["X-Queue-Depth"] = String(status.queueDepth)
-
-    const normalized = addRewardMessage(status)
-
-    return json(
-      { status: normalized, statusUrl: makeStatusUrl(), idempotencyKey },
-      { status: normalized.status === "completed" ? 200 : 202, headers },
-      { outcome: normalized.status },
-    )
-  } catch (err: any) {
-    console.error("[mining/click] enqueue failed:", err)
-    if (isTimeoutError(err) || err instanceof MiningStatusUnavailableError) {
-      return json(
-        { error: "Mining queue temporarily unavailable. Please retry." },
-        { status: 503, headers: { "Retry-After": "3" } },
-        { outcome: "queue_unavailable" },
-      )
-    }
-
-    return json(
-      {
-        error: "Unable to start mining",
-        detail: err?.message ?? String(err),
-        idempotencyKey,
-      },
-      { status: 500 },
-      { outcome: "exception" },
-    )
+    return respond(buildStatusResponse(enqueueResult.status, request), { outcome: "enqueued" })
+  } catch (error) {
+    // Queue failed – fall back to processing immediately so the user still gets rewarded
+    console.error("Mining click enqueue error, falling back to direct processing", error)
+    return processDirect("completed_after_enqueue_failure")
   }
 }

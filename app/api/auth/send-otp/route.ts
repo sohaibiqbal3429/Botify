@@ -45,16 +45,14 @@ export async function POST(request: NextRequest) {
     console.log("[send-otp] Database connected")
 
     // ----- Parse & validate body -----
-    const rawBody = (await request.json()) as unknown
+    const rawBody = await request.json()
     console.log("[send-otp] Raw body:", rawBody)
-
-    const bodyRecord = (rawBody ?? {}) as Record<string, unknown>
 
     // Normalise & trim incoming data before validation
     const body = sendOTPSchema.parse({
-      email: normalizeEmail(typeof bodyRecord.email === "string" ? bodyRecord.email : undefined),
-      phone: normalizePhoneNumber(typeof bodyRecord.phone === "string" ? bodyRecord.phone : undefined),
-      purpose: bodyRecord.purpose,
+      email: normalizeEmail(typeof rawBody.email === "string" ? rawBody.email : undefined),
+      phone: normalizePhoneNumber(typeof rawBody.phone === "string" ? rawBody.phone : undefined),
+      purpose: rawBody.purpose,
     })
 
     const { email, phone, purpose } = body

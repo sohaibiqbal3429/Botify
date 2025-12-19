@@ -8,7 +8,6 @@
 /out/
 .env
 .env.local
-env.example
 
 # production
 /build
