@@ -68,7 +68,10 @@ TransactionSchema.index({ createdAt: -1, _id: 1 })
 TransactionSchema.index({ type: 1, status: 1 })
 TransactionSchema.index({ userId: 1, claimable: 1, status: 1 })
 TransactionSchema.index({ "meta.uniqueKey": 1 })
-TransactionSchema.index({ userId: 1, "meta.uniqueEventId": 1 }, { unique: true, sparse: true })
+TransactionSchema.index(
+  { userId: 1, "meta.uniqueEventId": 1 },
+  { unique: true, partialFilterExpression: { "meta.uniqueEventId": { $exists: true, $ne: null } } },
+)
 TransactionSchema.index({ "meta.idempotencyKey": 1 }, { unique: true, sparse: true })
 
 TransactionSchema.virtual("id").get(function (this: ITransaction) {
