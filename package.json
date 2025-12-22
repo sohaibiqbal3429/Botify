@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "next build",
+    "build": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next build",
     "dev": "next dev",
     "lint": "next lint",
     "test": "tsc --project tsconfig.tests.json && NODE_PATH=. node --test -r ./dist-tests/tests/register-paths \"dist-tests/tests/**/*.js\"",
