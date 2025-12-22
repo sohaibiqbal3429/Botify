@@ -1,9 +1,17 @@
 import assert from "node:assert/strict"
 import test, { mock } from "node:test"
 
-process.env.SEED_IN_MEMORY = "true"
-process.env.ENABLE_DEV_OTP_FALLBACK = "true"
-process.env.NODE_ENV = "test"
+const setEnv = (key: string, value?: string) => {
+  if (value === undefined) {
+    delete (process.env as NodeJS.ProcessEnv)[key]
+  } else {
+    ;(process.env as NodeJS.ProcessEnv)[key] = value
+  }
+}
+
+setEnv("SEED_IN_MEMORY", "true")
+setEnv("ENABLE_DEV_OTP_FALLBACK", "true")
+setEnv("NODE_ENV", "test")
 
 import dbConnect from "@/lib/mongodb"
 import OTP from "@/models/OTP"
@@ -196,12 +204,12 @@ test("send-otp fails loudly when email config is missing in production mode", as
     SMTP_PASS: process.env.SMTP_PASS,
   }
 
-  process.env.NODE_ENV = "production"
-  process.env.ENABLE_DEV_OTP_FALLBACK = "false"
-  delete process.env.SMTP_HOST
-  delete process.env.SMTP_PORT
-  delete process.env.SMTP_USER
-  delete process.env.SMTP_PASS
+  setEnv("NODE_ENV", "production")
+  setEnv("ENABLE_DEV_OTP_FALLBACK", "false")
+  setEnv("SMTP_HOST", undefined)
+  setEnv("SMTP_PORT", undefined)
+  setEnv("SMTP_USER", undefined)
+  setEnv("SMTP_PASS", undefined)
 
   try {
     const { response, data } = await callRoute(sendOTP, {
@@ -241,13 +249,13 @@ test("send-otp returns structured SMTP errors without exposing sensitive data", 
     throw err
   })
 
-  process.env.NODE_ENV = "production"
-  process.env.ENABLE_DEV_OTP_FALLBACK = "false"
-  process.env.SKIP_OTP_DELIVERY = "false"
-  process.env.SMTP_HOST = "smtp.example.com"
-  process.env.SMTP_PORT = "587"
-  process.env.SMTP_USER = "user@example.com"
-  process.env.SMTP_PASS = "password"
+  setEnv("NODE_ENV", "production")
+  setEnv("ENABLE_DEV_OTP_FALLBACK", "false")
+  setEnv("SKIP_OTP_DELIVERY", "false")
+  setEnv("SMTP_HOST", "smtp.example.com")
+  setEnv("SMTP_PORT", "587")
+  setEnv("SMTP_USER", "user@example.com")
+  setEnv("SMTP_PASS", "password")
 
   try {
     const { response, data } = await callRoute(sendOTP, {
@@ -264,7 +272,7 @@ test("send-otp returns structured SMTP errors without exposing sensitive data", 
     )
     assert.equal("debug" in data, false)
   } finally {
-    sendMock.restore()
+    mock.restoreAll()
     Object.assign(process.env, previousEnv)
   }
 })
@@ -278,13 +286,13 @@ test("send-otp exposes SMTP debug info in non-production environments", async ()
     throw err
   })
 
-  process.env.NODE_ENV = "development"
-  process.env.ENABLE_DEV_OTP_FALLBACK = "false"
-  process.env.SKIP_OTP_DELIVERY = "false"
-  process.env.SMTP_HOST = "smtp.example.com"
-  process.env.SMTP_PORT = "587"
-  process.env.SMTP_USER = "user@example.com"
-  process.env.SMTP_PASS = "password"
+  setEnv("NODE_ENV", "development")
+  setEnv("ENABLE_DEV_OTP_FALLBACK", "false")
+  setEnv("SKIP_OTP_DELIVERY", "false")
+  setEnv("SMTP_HOST", "smtp.example.com")
+  setEnv("SMTP_PORT", "587")
+  setEnv("SMTP_USER", "user@example.com")
+  setEnv("SMTP_PASS", "password")
 
   try {
     const { response, data } = await callRoute(sendOTP, {
@@ -298,7 +306,7 @@ test("send-otp exposes SMTP debug info in non-production environments", async ()
     assert.ok(data.debug)
     assert.equal(data.debug.code, "EAUTH")
   } finally {
-    sendMock.restore()
+    mock.restoreAll()
     Object.assign(process.env, previousEnv)
   }
 })

@@ -28,7 +28,8 @@ const num = (v: unknown, fallback = 0) => {
 }
 
 export default async function DepositPage() {
-  const token = cookies().get("auth-token")?.value
+  const cookieStore = await cookies()
+  const token = cookieStore.get("auth-token")?.value
   if (!token) {
     redirect("/auth/login")
   }

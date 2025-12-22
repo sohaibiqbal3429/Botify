@@ -162,7 +162,7 @@ export default function ProfilePage() {
       if (!response.ok) {
         throw new Error((data as any)?.error || "Failed to send verification code")
       }
-      setOtpStatus({ success: formatOTPSuccessMessage(data) })
+      setOtpStatus({ success: formatOTPSuccessMessage(data, "Verification code sent") })
     } catch (error: any) {
       const message = typeof error?.message === "string" ? error.message : "Failed to send verification code"
       setOtpStatus({ error: message })

@@ -16,6 +16,10 @@ export async function GET(request: NextRequest) {
     await dbConnect()
 
     const user = await User.findById(userPayload.userId)
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
     let balance = await Balance.findOne({ userId: user._id })
 
     // Create balance if it doesn't exist

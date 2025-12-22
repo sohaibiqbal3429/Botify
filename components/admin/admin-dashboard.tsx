@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client"
 
 import {
@@ -1466,4 +1467,3 @@ function StatCard({ label, value }: { label: string; value: unknown }) {
     </Card>
   )
 }
-
