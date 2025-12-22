@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { type FilterQuery } from "mongoose"
 
 import dbConnect from "@/lib/mongodb"

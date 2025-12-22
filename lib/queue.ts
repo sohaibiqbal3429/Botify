@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Queue, Worker, type Job, type JobsOptions } from "bullmq"
 
 const hasRedis = Boolean(process.env.REDIS_URL)

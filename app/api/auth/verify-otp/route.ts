@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { type NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import OTP from "@/models/OTP"

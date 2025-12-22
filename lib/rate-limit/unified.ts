@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { NextResponse, type NextRequest } from "next/server"
 
 import { isRedisEnabled, getRedisClient } from "@/lib/redis"

@@ -69,13 +69,15 @@ export async function PUT(request: NextRequest) {
     const wallet2 = typeof payload.wallet2 === "string" ? payload.wallet2 : ""
     const wallet3 = typeof payload.wallet3 === "string" ? payload.wallet3 : ""
     const reason = typeof payload.reason === "string" ? payload.reason : null
+    const forwardedFor = request.headers.get("x-forwarded-for")
+    const clientIp = forwardedFor?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || null
 
     const nextWallets = await updateWalletAddressSettings({
       wallet1,
       wallet2,
       wallet3,
       adminId: adminUser._id.toString(),
-      ipAddress: request.ip ?? request.headers.get("x-forwarded-for") ?? null,
+      ipAddress: clientIp,
       reason,
     })
 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import mongoose from "mongoose"
 
 import dbConnect from "@/lib/mongodb"

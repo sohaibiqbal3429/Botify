@@ -12,7 +12,8 @@ import { ArrowUpRight, Lock } from "lucide-react"
 export const dynamic = "force-dynamic"
 
 export default async function WithdrawPage() {
-  const token = cookies().get("auth-token")?.value
+  const cookieStore = await cookies()
+  const token = cookieStore.get("auth-token")?.value
   if (!token) {
     redirect("/auth/login")
   }

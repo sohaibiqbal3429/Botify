@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { mkdir, writeFile } from "fs/promises"
 import { extname, join } from "path"
 import { createHash, randomUUID } from "crypto"

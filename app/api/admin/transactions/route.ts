@@ -126,14 +126,27 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    type LeanTx = {
+      _id: mongoose.Types.ObjectId
+      userId:
+        | mongoose.Types.ObjectId
+        | { _id?: mongoose.Types.ObjectId | string; name?: string; email?: string; referralCode?: string }
+        | string
+      amount?: number | string
+      status?: string
+      type?: string
+      meta?: Record<string, unknown>
+      createdAt?: Date | string
+    }
+
     const transactions = await Transaction.find(filter, TRANSACTION_PROJECTION)
       .sort({ _id: -1 })
       .limit(limit + 1)
-      .lean()
+      .lean<LeanTx[]>()
 
     const hasMore = transactions.length > limit
     const trimmed = hasMore ? transactions.slice(0, -1) : transactions
-    const nextCursor = hasMore ? String(trimmed[trimmed.length - 1]._id) : null
+    const nextCursor = hasMore && trimmed.length > 0 ? String(trimmed[trimmed.length - 1]._id) : null
 
     const userIds = trimmed
       .map((transaction) =>

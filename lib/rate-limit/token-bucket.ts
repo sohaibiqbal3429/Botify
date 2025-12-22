@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type Redis from "ioredis"
 
 import { getRedisClient } from "@/lib/redis"

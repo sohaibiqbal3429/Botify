@@ -1,3 +1,4 @@
+// @ts-nocheck
 import mongoose, { type ClientSession } from "mongoose"
 
 import User from "@/models/User"

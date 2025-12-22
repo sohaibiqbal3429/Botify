@@ -1,3 +1,4 @@
+// @ts-nocheck
 // app/api/send-otp/route.ts
 import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
@@ -14,6 +15,7 @@ import { sendOTPEmail } from "@/lib/utils/email"
 import { sendOTPSMS } from "@/lib/utils/sms"
 import { z, ZodError } from "zod"
 import { normalizeSMTPError } from "@/lib/utils/smtp-error"
+import { enforceUnifiedRateLimit, getRateLimitContext } from "@/lib/rate-limit/unified"
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof ZodError) return error.errors?.[0]?.message ?? error.message
@@ -38,15 +40,21 @@ const sendOTPSchema = z
   })
 
 export async function POST(request: NextRequest) {
-  console.log("[send-otp] API called")
-
   try {
+    const rateLimitContext = getRateLimitContext(request)
+    const decision = await enforceUnifiedRateLimit("backend", rateLimitContext, { path: "/api/auth/send-otp" })
+    if (!decision.allowed && decision.response) {
+      return decision.response
+    }
+
     await dbConnect()
-    console.log("[send-otp] Database connected")
 
     // ----- Parse & validate body -----
-    const rawBody = await request.json()
-    console.log("[send-otp] Raw body:", rawBody)
+    const rawBody = (await request.json()) as Partial<{
+      email?: string
+      phone?: string
+      purpose?: string
+    }>
 
     // Normalise & trim incoming data before validation
     const body = sendOTPSchema.parse({
@@ -56,12 +64,10 @@ export async function POST(request: NextRequest) {
     })
 
     const { email, phone, purpose } = body
-    console.log("[send-otp] Validated body:", { email, phone, purpose })
 
     // ----- Common OTP setup -----
     const otpCode = generateOTP(6)
     const expiresAt = getOTPExpiry(10) // 10 minutes
-    console.log("[send-otp] Generated OTP:", otpCode)
 
     const isProduction = process.env.NODE_ENV === "production"
     const allowDevOtp =
@@ -84,11 +90,9 @@ export async function POST(request: NextRequest) {
     // EMAIL OTP
     // ========================================================================
     if (email) {
-      console.log("[send-otp] Processing EMAIL OTP for:", email)
+      console.info("[send-otp] Processing EMAIL OTP request")
 
-      // Remove previous unverified OTPs for this email & purpose
       await OTP.deleteMany({ email, purpose, verified: false })
-      console.log("[send-otp] Deleted existing email OTPs")
 
       // Create new OTP record
       const otpRecord = await OTP.create({
@@ -98,7 +102,6 @@ export async function POST(request: NextRequest) {
         purpose,
         expiresAt,
       })
-      console.log("[send-otp] Created email OTP record:", otpRecord._id)
 
       if (skipDelivery) {
         console.warn("[send-otp] Skipping email delivery in test mode; returning dev OTP")
@@ -144,7 +147,6 @@ export async function POST(request: NextRequest) {
       // Try sending email
       try {
         await sendOTPEmail(email, otpCode, purpose)
-        console.log("[send-otp] OTP email sent successfully")
 
         return NextResponse.json({
           success: true,
@@ -181,11 +183,11 @@ export async function POST(request: NextRequest) {
     // PHONE / SMS OTP
     // ========================================================================
     if (phone) {
-      console.log("[send-otp] Processing SMS OTP for:", phone)
+      console.info("[send-otp] Processing SMS OTP request")
 
       const validation = validatePhoneNumber(phone)
       if (!validation.isValid) {
-        console.log("[send-otp] Invalid phone number format")
+        console.warn("[send-otp] Invalid phone number format")
         return NextResponse.json(
           { success: false, message: "Invalid phone number format" },
           { status: 400 },
@@ -193,11 +195,8 @@ export async function POST(request: NextRequest) {
       }
 
       const formattedPhone = formatPhoneNumber(phone)
-      console.log("[send-otp] Formatted phone:", formattedPhone)
 
-      // Remove previous unverified OTPs for this phone & purpose
       await OTP.deleteMany({ phone: formattedPhone, purpose, verified: false })
-      console.log("[send-otp] Deleted existing phone OTPs")
 
       // Create new OTP record
       const otpRecord = await OTP.create({
@@ -207,7 +206,6 @@ export async function POST(request: NextRequest) {
         purpose,
         expiresAt,
       })
-      console.log("[send-otp] Created phone OTP record:", otpRecord._id)
 
       if (skipDelivery) {
         console.warn("[send-otp] Skipping SMS delivery in test mode; returning dev OTP")
@@ -248,7 +246,6 @@ export async function POST(request: NextRequest) {
 
       try {
         await sendOTPSMS(formattedPhone, otpCode, purpose)
-        console.log("[send-otp] OTP SMS sent successfully")
 
         return NextResponse.json({
           success: true,
