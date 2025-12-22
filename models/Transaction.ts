@@ -70,7 +70,12 @@ TransactionSchema.index({ userId: 1, claimable: 1, status: 1 })
 TransactionSchema.index({ "meta.uniqueKey": 1 })
 TransactionSchema.index(
   { userId: 1, "meta.uniqueEventId": 1 },
-  { unique: true, partialFilterExpression: { "meta.uniqueEventId": { $exists: true, $ne: null } } },
+  {
+    name: "uniq_user_uniqueEventId",
+    unique: true,
+    // Exclude null/absent/non-string values so normal transactions do not collide.
+    partialFilterExpression: { "meta.uniqueEventId": { $exists: true, $type: "string", $ne: "" } },
+  },
 )
 TransactionSchema.index({ "meta.idempotencyKey": 1 }, { unique: true, sparse: true })
 

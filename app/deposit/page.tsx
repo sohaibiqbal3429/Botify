@@ -58,8 +58,8 @@ export default async function DepositPage() {
   return (
     <div className="flex h-screen bg-background">
       <Sidebar user={context.user} />
-      <main className="flex-1 w-full overflow-y-auto md:ml-64">
-        <div className="w-full space-y-6 p-6">
+      <main className="flex-1 w-full min-w-0 overflow-auto md:ml-64">
+        <div className="w-full max-w-none space-y-6 p-6 md:p-6">
           <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Deposit Funds</h1>

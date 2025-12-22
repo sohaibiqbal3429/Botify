@@ -200,8 +200,8 @@ export default function TransactionsPage() {
     <div className="flex h-screen bg-background">
       <Sidebar user={user} />
 
-      <main className="flex-1 w-full overflow-auto md:ml-64">
-        <div className="w-full p-6">
+      <main className="flex-1 w-full min-w-0 overflow-auto md:ml-64">
+        <div className="w-full max-w-none p-6 md:p-6">
           <div className="mb-8 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-balance">Transaction History</h1>
@@ -313,7 +313,7 @@ export default function TransactionsPage() {
                                 {formatAmount(transaction.amount, transaction.type)}
                               </TableCell>
                               <TableCell>{getStatusBadge(transaction.status)}</TableCell>
-                              <TableCell className="max-w-xs">
+                              <TableCell>
                                 <div className="text-sm">
                                   {transaction.meta?.source && (
                                     <div className="text-muted-foreground">Source: {transaction.meta.source}</div>

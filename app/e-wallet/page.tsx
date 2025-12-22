@@ -118,8 +118,8 @@ export default function EWalletPage() {
     <div className="flex h-screen bg-background">
       <Sidebar user={user} />
 
-      <main className="flex-1 w-full overflow-auto md:ml-64">
-        <div className="w-full p-6">
+      <main className="flex-1 w-full min-w-0 overflow-auto md:ml-64">
+        <div className="w-full max-w-none p-6 md:p-6">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-balance">E-Wallet</h1>
             <p className="text-muted-foreground">Manage your external wallet addresses</p>

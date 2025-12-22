@@ -520,15 +520,15 @@ export default function TeamPageShell() {
   }, [levelData, levelError, levelLoading])
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-slate-950 md:flex-row">
+    <div className="relative flex min-h-screen w-full flex-col bg-slate-950 md:flex-row">
       <div className="pointer-events-none absolute inset-0 opacity-70">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.14),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(14,165,233,0.12),transparent_40%),radial-gradient(circle_at_50%_100%,rgba(59,130,246,0.12),transparent_38%)]" />
       </div>
 
       <Sidebar user={sidebarUser} />
 
-      <main className="relative flex-1 w-full overflow-auto md:ml-64">
-        <div className="w-full space-y-7 p-5 sm:p-6 lg:p-8">
+      <main className="relative flex-1 w-full min-w-0 overflow-auto md:ml-64">
+        <div className="w-full max-w-none space-y-7 p-5 sm:p-6 lg:p-8">
           <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-600/20 via-slate-900 to-cyan-600/15 p-6 shadow-2xl shadow-emerald-500/20">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1">

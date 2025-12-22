@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = withdrawSchema.parse(body)
     const requestAmount = normaliseAmount(validatedData.amount)
-    const source = validatedData.source ?? "main"
+    const source = validatedData.source ?? "earnings"
 
     const [user, balanceDoc, settings] = await Promise.all([
       User.findById(userPayload.userId),
@@ -79,12 +79,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (source !== "earnings") {
+      return NextResponse.json(
+        { error: "Withdrawals are only allowed from earnings balance.", code: "EARNINGS_ONLY" },
+        { status: 400 },
+      )
+    }
+
     const withdrawableSnapshot = calculateWithdrawableSnapshot(balanceDoc, now)
-    const earningsBalance = normaliseAmount(balanceDoc.totalEarning ?? 0)
-    const selectedBalance =
-      source === "earnings"
-        ? Math.min(earningsBalance, withdrawableSnapshot.withdrawable)
-        : withdrawableSnapshot.withdrawable
+    const earningsBalance = Math.max(
+      0,
+      normaliseAmount(balanceDoc.totalEarning ?? 0) - normaliseAmount(balanceDoc.pendingWithdraw ?? 0),
+    )
+    const selectedBalance = Math.min(earningsBalance, withdrawableSnapshot.withdrawable)
 
     incrementCounter("wallet.withdraw.request_attempt", 1, {
       bucket: resolveAmountBucket(requestAmount),

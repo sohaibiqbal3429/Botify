@@ -10,11 +10,11 @@ import Balance from "@/models/Balance"
 import Transaction from "@/models/Transaction"
 import User from "@/models/User"
 
-// ✅ CONFIG
+// バ. CONFIG
 const COOLDOWN_MS = 24 * 60 * 60 * 1000
 const MISSION_SOURCE = "DAILY_PROFIT_MISSION"
 const REWARD_PCT = 0.025 // 2.5%
-const MIN_DEPOSIT = 50 // ✅ deposit required
+const MIN_DEPOSIT = 50 // バ. deposit required
 
 class CooldownError extends Error {
   nextEligibleAt: Date
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
   const idempotencyKey = request.headers.get("Idempotency-Key")?.trim() || null
 
-  // ✅ Idempotency (same request repeat -> return same result)
+  // バ. Idempotency (same request repeat -> return same result)
   if (idempotencyKey) {
     const existing = await Transaction.findOne({
       userId: session.userId,
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "User not found" }, { status: 404 })
   }
 
-  // ✅ Deposit required (simple gate)
+  // バ. Deposit required (simple gate)
   const depositTotal = toNumberSafe((user as any).depositTotal, 0)
   if (depositTotal < MIN_DEPOSIT) {
     return NextResponse.json(
@@ -99,6 +99,8 @@ export async function POST(request: NextRequest) {
   let nextEligibleAt: Date | null = null
 
   try {
+    const uniqueEventId = idempotencyKey || crypto.randomUUID()
+
     await sessionDb.withTransaction(async () => {
       // Ensure balance exists
       const balance =
@@ -128,7 +130,7 @@ export async function POST(request: NextRequest) {
 
       const currentBalance = Number(balance.current ?? 0)
 
-      // ✅ Balance required
+      // バ. Balance required
       if (!Number.isFinite(currentBalance) || currentBalance <= 0) {
         throw new Error("INSUFFICIENT_BALANCE")
       }
@@ -136,7 +138,7 @@ export async function POST(request: NextRequest) {
       rewardAmount = roundCurrency(currentBalance * REWARD_PCT)
       nextEligibleAt = new Date(now.getTime() + COOLDOWN_MS)
 
-      // ✅ Cooldown guard (atomic)
+      // バ. Cooldown guard (atomic)
       const updateResult = await User.updateOne(
         {
           _id: user._id,
@@ -174,7 +176,14 @@ export async function POST(request: NextRequest) {
       balance.totalEarning = roundCurrency(Number(balance.totalEarning ?? 0) + rewardAmount)
       await balance.save({ session: sessionDb })
 
-      // ✅ Transaction meta (uniqueEventId NEVER null)
+      // Keep user-level ROI/earning aggregate in sync for dashboards/profile views
+      await User.updateOne(
+        { _id: user._id },
+        { $inc: { roiEarnedTotal: rewardAmount } },
+        { session: sessionDb },
+      )
+
+      // バ. Transaction meta (uniqueEventId NEVER null)
       const meta: Record<string, unknown> = {
         source: MISSION_SOURCE,
         balanceBefore,
@@ -182,7 +191,7 @@ export async function POST(request: NextRequest) {
         rewardPct: REWARD_PCT * 100,
         description: "Daily Profit Mission reward",
         nextEligibleAt: nextEligibleAt.toISOString(),
-        uniqueEventId: idempotencyKey || crypto.randomUUID(),
+        uniqueEventId,
       }
       if (idempotencyKey) meta.idempotencyKey = idempotencyKey
 
@@ -240,7 +249,7 @@ export async function POST(request: NextRequest) {
     await sessionDb.endSession()
   }
 
-  // ✅ Success response
+  // バ. Success response
   return NextResponse.json({
     rewardAmount,
     newBalance,

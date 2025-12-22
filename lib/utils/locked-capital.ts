@@ -49,6 +49,9 @@ export function calculateWithdrawableSnapshot(
   const currentCents = toCents(balance.current)
   const totalEarningCents = toCents(balance.totalEarning ?? 0)
   const pendingWithdraw = normaliseAmount(balance.pendingWithdraw ?? 0)
+  const pendingWithdrawCents = toCents(pendingWithdraw)
+  const earningsAvailableCents = Math.max(0, totalEarningCents - pendingWithdrawCents)
+  const withdrawableCents = Math.min(currentCents, earningsAvailableCents)
 
   return {
     asOf,
@@ -57,8 +60,8 @@ export function calculateWithdrawableSnapshot(
     lockedAmountFromLots: 0,
     lockedCapitalField: 0,
     pendingWithdraw,
-    withdrawable: fromCents(totalEarningCents),
-    withdrawableCents: totalEarningCents,
+    withdrawable: fromCents(withdrawableCents),
+    withdrawableCents,
     lockedAmountCents: 0,
     currentCents,
     nextUnlockAt: null,
