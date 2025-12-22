@@ -193,75 +193,79 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const guardCurrent = normaliseAmount(requestAmount)
+    const guardAmount = normaliseAmount(requestAmount)
 
-    const updateResult = await Balance.updateOne(
-      {
-        userId: userPayload.userId,
-        current: { $gte: guardCurrent },
-      },
-      {
-        $inc: {
-          current: -requestAmount,
-          pendingWithdraw: requestAmount,
-        },
-      },
-    )
+// Decide which balance field to debit based on source
+const updateFilter =
+  source === "earnings"
+    ? { userId: userPayload.userId, totalEarning: { $gte: guardAmount } }
+    : { userId: userPayload.userId, current: { $gte: guardAmount } }
 
-    if (updateResult.modifiedCount === 0) {
-      const freshBalance = await Balance.findOne({ userId: userPayload.userId })
-      const refreshedSnapshot = freshBalance ? calculateWithdrawableSnapshot(freshBalance, now) : null
+const updateInc =
+  source === "earnings"
+    ? { totalEarning: -requestAmount, pendingWithdraw: requestAmount }
+    : { current: -requestAmount, pendingWithdraw: requestAmount }
 
-      incrementCounter("wallet.withdraw.request_rejected", 1, {
-        reason: "stale_balance",
-      })
+const updateResult = await Balance.updateOne(updateFilter, { $inc: updateInc })
 
-      emitAuditLog({
-        event: "withdrawal_request_conflict",
-        actorId: userPayload.userId,
-        metadata: {
-          requestedAmount: requestAmount,
-          withdrawable: refreshedSnapshot?.withdrawable ?? 0,
-          source,
-        },
-        severity: "warn",
-      })
+if (updateResult.modifiedCount === 0) {
+  const freshBalance = await Balance.findOne({ userId: userPayload.userId })
+  const refreshedSnapshot = freshBalance ? calculateWithdrawableSnapshot(freshBalance, now) : null
 
-      return NextResponse.json(
-        {
-          error: `Your balance changed while processing the withdrawal. You can withdraw up to $${(refreshedSnapshot?.withdrawable ?? 0).toFixed(2)} right now.`,
-          code: "BALANCE_CHANGED",
-          context: {
-            requestedAmount: requestAmount,
-            withdrawable: refreshedSnapshot?.withdrawable ?? 0,
-            source,
-          },
-        },
-        { status: 409 },
-      )
-    }
+  incrementCounter("wallet.withdraw.request_rejected", 1, {
+    reason: "stale_balance",
+  })
 
-    const refreshedBalance = await Balance.findOne({ userId: userPayload.userId })
-    if (!refreshedBalance) {
-      throw new Error("Balance missing after withdrawal update")
-    }
+  emitAuditLog({
+    event: "withdrawal_request_conflict",
+    actorId: userPayload.userId,
+    metadata: {
+      requestedAmount: requestAmount,
+      withdrawable: refreshedSnapshot?.withdrawable ?? 0,
+      source,
+    },
+    severity: "warn",
+  })
 
-    const refreshedSnapshot = calculateWithdrawableSnapshot(refreshedBalance, now)
-
-    const transaction = await Transaction.create({
-      userId: userPayload.userId,
-      type: "withdraw",
-      amount: requestAmount,
-      status: "pending",
-      meta: {
-        walletAddress: validatedData.walletAddress,
-        requestedAt: now,
-        userBalance: refreshedSnapshot.current,
-        withdrawableAfterRequest: refreshedSnapshot.withdrawable,
-        withdrawalFee: 0,
+  return NextResponse.json(
+    {
+      error: `Your balance changed while processing the withdrawal. You can withdraw up to $${(refreshedSnapshot?.withdrawable ?? 0).toFixed(2)} right now.`,
+      code: "BALANCE_CHANGED",
+      context: {
+        requestedAmount: requestAmount,
+        withdrawable: refreshedSnapshot?.withdrawable ?? 0,
         source,
       },
-    })
+    },
+    { status: 409 },
+  )
+}
+
+const refreshedBalance = await Balance.findOne({ userId: userPayload.userId })
+if (!refreshedBalance) {
+  throw new Error("Balance missing after withdrawal update")
+}
+
+const refreshedSnapshot = calculateWithdrawableSnapshot(refreshedBalance, now)
+
+// Store the "selected" balance in meta depending on source
+const userBalanceForMeta =
+  source === "earnings" ? Number(refreshedBalance.totalEarning ?? 0) : Number(refreshedBalance.current ?? 0)
+
+const transaction = await Transaction.create({
+  userId: userPayload.userId,
+  type: "withdraw",
+  amount: requestAmount,
+  status: "pending",
+  meta: {
+    walletAddress: validatedData.walletAddress,
+    requestedAt: now,
+    userBalance: userBalanceForMeta,
+    withdrawableAfterRequest: refreshedSnapshot.withdrawable,
+    withdrawalFee: 0,
+    source,
+  },
+})
 
     await Notification.create({
       userId: userPayload.userId,
