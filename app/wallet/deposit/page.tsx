@@ -11,7 +11,8 @@ import { ArrowDownLeft } from "lucide-react"
 import { DepositForm } from "@/components/wallet/deposit-form"
 
 export default async function WalletDepositPage() {
-  const token = cookies().get("auth-token")?.value
+  const cookieStore = await cookies()
+  const token = cookieStore.get("auth-token")?.value
   if (!token) {
     redirect("/auth/login")
   }

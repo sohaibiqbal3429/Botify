@@ -366,7 +366,6 @@ export default function TeamPageShell() {
     isValidating: levelValidating,
   } = useSWR<LevelResponse>("/api/levels/eligibility", fetcher, {
     revalidateOnFocus: false,
-    fallbackData: cachedLevelData ?? undefined,
   })
 
   const teamStructureKey = userId ? "/api/team/structure" : null

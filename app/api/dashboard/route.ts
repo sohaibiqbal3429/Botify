@@ -6,8 +6,8 @@ import User from "@/models/User"
 import Balance from "@/models/Balance"
 import Transaction from "@/models/Transaction"
 import { getUserFromRequest } from "@/lib/auth"
-import { hasQualifiedDeposit } from "@/lib/utils/leveling"
 import { getClaimableTeamRewardTotal } from "@/lib/services/team-earnings"
+import { QUALIFYING_DIRECT_DEPOSIT } from "@/lib/utils/leveling"
 
 function ensureObjectId(value: mongoose.Types.ObjectId | string) {
   if (value instanceof mongoose.Types.ObjectId) {
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 
     await dbConnect()
 
-    const user = await User.findById(userPayload.userId)
+    const user = await User.findById(userPayload.userId).lean()
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
@@ -93,9 +93,9 @@ export async function GET(request: NextRequest) {
 
     const userObjectId = ensureObjectId(user._id as any)
 
-    let balance = await Balance.findOne({ userId: userObjectId })
-    if (!balance) {
-      balance = await Balance.create({
+    let balanceDoc = await Balance.findOne({ userId: userObjectId }).lean()
+    if (!balanceDoc) {
+      const createdBalance = await Balance.create({
         userId: userObjectId,
         current: 0,
         totalBalance: 0,
@@ -104,42 +104,51 @@ export async function GET(request: NextRequest) {
         staked: 0,
         pendingWithdraw: 0,
         teamRewardsAvailable: 0,
-      teamRewardsClaimed: 0,
-    })
-  }
+        teamRewardsClaimed: 0,
+      })
+      balanceDoc = createdBalance.toObject ? createdBalance.toObject() : (createdBalance as any)
+    }
 
-  const [directReferrals, claimableTeamRewards] = await Promise.all([
-    User.find({ referredBy: userObjectId }).select("qualified depositTotal").lean(),
-    getClaimableTeamRewardTotal(userObjectId.toString()),
-  ])
-  const activeMembers = directReferrals.filter((referral) => hasQualifiedDeposit(referral)).length
+    const now = new Date()
 
-  const now = new Date()
+    const [activeMembers, claimableTeamRewards, teamRewardToday] = await Promise.all([
+      User.countDocuments({
+        referredBy: userObjectId,
+        $or: [{ qualified: true }, { depositTotal: { $gte: QUALIFYING_DIRECT_DEPOSIT } }],
+      }),
+      getClaimableTeamRewardTotal(userObjectId.toString()),
+      getDailyTeamRewardTotal(userObjectId, now),
+    ])
 
-  const teamRewardsAvailable = claimableTeamRewards
-  const teamRewardToday = await getDailyTeamRewardTotal(userObjectId, now)
-  const totalEarning = balance.totalEarning ?? 0
-  const totalBalance = balance.totalBalance ?? 0
-    const currentBalance = balance.current ?? 0
+    const totalEarning = Number(balanceDoc?.totalEarning ?? 0)
+    const totalBalance = Number(balanceDoc?.totalBalance ?? 0)
+    const currentBalance = Number(balanceDoc?.current ?? 0)
 
-    return NextResponse.json({
-      kpis: {
-        totalEarning,
-        totalBalance,
-        currentBalance,
-        activeMembers,
-        totalWithdraw: user.withdrawTotal ?? 0,
-        pendingWithdraw: balance.pendingWithdraw ?? 0,
-        teamReward: teamRewardsAvailable,
-        teamRewardToday,
+    return NextResponse.json(
+      {
+        kpis: {
+          totalEarning,
+          totalBalance,
+          currentBalance,
+          activeMembers,
+          totalWithdraw: Number(user.withdrawTotal ?? 0),
+          pendingWithdraw: Number(balanceDoc?.pendingWithdraw ?? 0),
+          teamReward: claimableTeamRewards,
+          teamRewardToday,
+        },
+        user: {
+          level: Number(user.level ?? 0),
+          referralCode: user.referralCode ?? "",
+          roiEarnedTotal: Number(user.roiEarnedTotal ?? 0),
+          depositTotal: Number(user.depositTotal ?? 0),
+        },
       },
-      user: {
-        level: user.level ?? 0,
-        referralCode: user.referralCode ?? "",
-        roiEarnedTotal: user.roiEarnedTotal ?? 0,
-        depositTotal: user.depositTotal ?? 0,
+      {
+        headers: {
+          "cache-control": "private, max-age=30",
+        },
       },
-    })
+    )
   } catch (error) {
     console.error("Dashboard error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

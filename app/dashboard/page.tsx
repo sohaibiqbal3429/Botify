@@ -4,12 +4,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
-import { ImportantUpdateModal } from "@/components/dashboard/important-update-modal"
 import { KPICards } from "@/components/dashboard/kpi-cards"
-import { RateLimitTelemetryCard } from "@/components/dashboard/rate-limit-telemetry"
-import { HalvingChart } from "@/components/dashboard/halving-chart"
-import { LuckyDrawCard } from "@/components/dashboard/lucky-draw-card"
-import { InviteAndEarnPanel } from "@/components/dashboard/invite-and-earn-panel"
 import { DailyProfitMission } from "@/components/dashboard/daily-profit-mission"
 
 interface DashboardData {
@@ -95,27 +90,23 @@ export default function DashboardPage() {
   }, [fetchDashboardData])
 
   if (loading) {
-  return (
-    <div className="flex h-screen items-center justify-center bg-background">
-      <div className="flex flex-col items-center justify-center gap-4 text-center">
-        <div className="relative h-14 w-14">
-          <div className="absolute inset-0 rounded-full border border-primary/20" />
-          <div className="absolute inset-0 animate-spin rounded-full border-t-2 border-primary" />
-          <div className="absolute inset-2 rounded-full bg-primary/5 backdrop-blur" />
-        </div>
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center justify-center gap-4 text-center">
+          <div className="relative h-14 w-14">
+            <div className="absolute inset-0 rounded-full border border-primary/20" />
+            <div className="absolute inset-0 animate-spin rounded-full border-t-2 border-primary" />
+            <div className="absolute inset-2 rounded-full bg-primary/5 backdrop-blur" />
+          </div>
 
-        <div className="space-y-1">
-          <p className="text-sm font-medium tracking-wide text-foreground">
-            Preparing your workspace
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Securing session • Syncing insights • Final touches
-          </p>
+          <div className="space-y-1">
+            <p className="text-sm font-medium tracking-wide text-foreground">Preparing your workspace</p>
+            <p className="text-xs text-muted-foreground">Securing session • Syncing insights • Final touches</p>
+          </div>
         </div>
       </div>
-    </div>
-  )
-}
+    )
+  }
 
   if (!data) {
     return (

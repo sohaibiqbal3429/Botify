@@ -1,0 +1,16 @@
+{
+  "extends": ["next/core-web-vitals"],
+  "plugins": [],
+  "rules": {
+    "no-unused-vars": [
+      "warn",
+      {
+        "args": "after-used",
+        "argsIgnorePattern": "^_",
+        "vars": "all",
+        "varsIgnorePattern": "^_"
+      }
+    ]
+  },
+  "ignorePatterns": ["dist/", "dist-tests/", ".next/", "node_modules/"]
+}

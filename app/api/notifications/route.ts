@@ -13,28 +13,39 @@ export async function GET(request: NextRequest) {
     await dbConnect()
 
     const { searchParams } = new URL(request.url)
-    const page = Number.parseInt(searchParams.get("page") || "1")
-    const limit = Number.parseInt(searchParams.get("limit") || "20")
+    const parsedPage = Number.parseInt(searchParams.get("page") || "1", 10)
+    const parsedLimit = Number.parseInt(searchParams.get("limit") || "20", 10)
+    const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1
+    const limit = Math.min(50, Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 20))
 
-    // Get notifications
-    const notifications = await Notification.find({ userId: userPayload.userId })
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
+    const baseFilter = { userId: userPayload.userId }
+    const [notifications, total, unreadCount] = await Promise.all([
+      Notification.find(baseFilter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      Notification.countDocuments(baseFilter),
+      Notification.countDocuments({ ...baseFilter, read: false }),
+    ])
 
-    const total = await Notification.countDocuments({ userId: userPayload.userId })
-    const unreadCount = await Notification.countDocuments({ userId: userPayload.userId, read: false })
-
-    return NextResponse.json({
-      notifications,
-      unreadCount,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
+    return NextResponse.json(
+      {
+        notifications,
+        unreadCount,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
       },
-    })
+      {
+        headers: {
+          "cache-control": "private, max-age=15",
+        },
+      },
+    )
   } catch (error) {
     console.error("Notifications error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

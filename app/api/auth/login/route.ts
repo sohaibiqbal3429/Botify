@@ -5,9 +5,16 @@ import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
 import { loginSchema } from "@/lib/validations/auth"
 import { TOKEN_MAX_AGE_SECONDS, comparePassword, signToken } from "@/lib/auth"
+import { enforceUnifiedRateLimit, getRateLimitContext } from "@/lib/rate-limit/unified"
 
 export async function POST(request: NextRequest) {
   try {
+    const rateLimitContext = getRateLimitContext(request)
+    const decision = await enforceUnifiedRateLimit("backend", rateLimitContext, { path: "/api/auth/login" })
+    if (!decision.allowed && decision.response) {
+      return decision.response
+    }
+
     const body = await request.json()
     const validatedData = loginSchema.parse(body)
 
