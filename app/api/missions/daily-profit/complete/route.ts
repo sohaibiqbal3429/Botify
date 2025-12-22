@@ -248,4 +248,3 @@ export async function POST(request: NextRequest) {
     message: "Rewarded",
   })
 }
-c

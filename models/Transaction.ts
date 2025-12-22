@@ -44,7 +44,7 @@ const TransactionSchema = new Schema<ITransaction>(
       required: true,
     },
     amount: { type: Number, required: true },
-    userEmail: { type: String, index: true },
+    userEmail: { type: String },
     meta: { type: Schema.Types.Mixed },
     claimable: { type: Boolean, default: false },
     claimedAt: { type: Date },

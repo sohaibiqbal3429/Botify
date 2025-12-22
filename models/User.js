@@ -56,10 +56,7 @@ const UserSchema = new Schema(
 )
 
 UserSchema.index({ createdAt: -1 })
-UserSchema.index({ email: 1 }, { unique: true })
 UserSchema.index({ status: 1, createdAt: -1 })
-UserSchema.index({ phone: 1 })
-UserSchema.index({ referralCode: 1 })
 UserSchema.index({ referredBy: 1 })
 
 export default createModelProxy("User", UserSchema)

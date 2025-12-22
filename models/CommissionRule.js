@@ -48,6 +48,4 @@ const CommissionRuleSchema = new mongoose.Schema(
   },
 )
 
-CommissionRuleSchema.index({ level: 1 })
-
 export default createModelProxy("CommissionRule", CommissionRuleSchema)
