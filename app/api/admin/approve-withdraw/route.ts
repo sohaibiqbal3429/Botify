@@ -6,6 +6,7 @@ import Balance from "@/models/Balance"
 import Transaction from "@/models/Transaction"
 import Notification from "@/models/Notification"
 import { getUserFromRequest } from "@/lib/auth"
+import { normaliseAmount } from "@/lib/utils/locked-capital"
 
 export async function POST(request: NextRequest) {
   try {
@@ -64,6 +65,34 @@ export async function POST(request: NextRequest) {
 
     const transactionHash = typeof txHash === "string" && txHash.trim().length > 0 ? txHash.trim() : `tx_${Date.now()}`
 
+    const balance = await Balance.findOne({ userId: transaction.userId })
+    if (!balance) {
+      return NextResponse.json({ error: "User balance not found" }, { status: 404 })
+    }
+
+    const currentPendingWithdraw = normaliseAmount(balance.pendingWithdraw ?? 0)
+    const currentTotalEarning = normaliseAmount(balance.totalEarning ?? 0)
+
+    const updatedPendingWithdraw = Math.max(0, normaliseAmount(currentPendingWithdraw - amount))
+    const updatedTotalEarning = Math.max(0, normaliseAmount(currentTotalEarning - amount))
+
+    const balanceUpdate = await Balance.updateOne(
+      { _id: balance._id, pendingWithdraw: balance.pendingWithdraw },
+      {
+        $set: {
+          pendingWithdraw: updatedPendingWithdraw,
+          totalEarning: updatedTotalEarning,
+        },
+      },
+    )
+
+    if (balanceUpdate.modifiedCount === 0) {
+      return NextResponse.json(
+        { error: "Withdrawal could not be applied to balance. Please retry." },
+        { status: 409 },
+      )
+    }
+
     await Transaction.updateOne(
       { _id: normalizedTransactionId },
       {
@@ -77,18 +106,8 @@ export async function POST(request: NextRequest) {
       },
     )
 
-    // Update user withdraw total and balance
-    await Promise.all([
-      User.updateOne({ _id: transaction.userId }, { $inc: { withdrawTotal: amount } }),
-      Balance.updateOne(
-        { userId: transaction.userId },
-        {
-          $inc: {
-            pendingWithdraw: -amount,
-          },
-        },
-      ),
-    ])
+    // Update user withdraw total
+    await User.updateOne({ _id: transaction.userId }, { $inc: { withdrawTotal: amount } })
 
     // Create notification
     await Notification.create({
