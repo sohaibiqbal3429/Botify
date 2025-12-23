@@ -8,7 +8,7 @@ import Transaction from "@/models/Transaction";
 import Notification from "@/models/Notification";
 import { getUserFromRequest } from "@/lib/auth";
 import { applyDepositRewards, isUserActiveFromDeposits } from "@/lib/services/rewards";
-import { ACTIVE_DEPOSIT_THRESHOLD, DEPOSIT_L1_PERCENT, DEPOSIT_L2_PERCENT_ACTIVE, DEPOSIT_SELF_PERCENT_ACTIVE } from "@/lib/constants/bonuses";
+import { ACTIVE_DEPOSIT_THRESHOLD, DEPOSIT_L1_PERCENT, DEPOSIT_L2_PERCENT, DEPOSIT_SELF_PERCENT } from "@/lib/constants/bonuses";
 
 function badRequest(msg: string, code = 400) {
   return NextResponse.json({ error: msg }, { status: code });
@@ -127,10 +127,10 @@ export async function POST(request: NextRequest) {
       approvedTx.meta = {
         ...(approvedTx.meta ?? {}),
         bonusBreakdown: {
-          selfPercent: nowActive ? DEPOSIT_SELF_PERCENT_ACTIVE * 100 : 0,
+          selfPercent: DEPOSIT_SELF_PERCENT * 100,
           l1Percent: DEPOSIT_L1_PERCENT * 100,
-          l2Percent: nowActive ? DEPOSIT_L2_PERCENT_ACTIVE * 100 : 0,
-          selfAmount: outcome.selfBonus,
+          l2Percent: DEPOSIT_L2_PERCENT * 100,
+          selfAmount: 0,
           l1Amount: outcome.l1Bonus,
           l2Amount: outcome.l2Bonus,
           l1UserId: outcome.l1UserId,
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
         msg.push("Your account remains Active.");
       } else {
         const remaining = Math.max(0, ACTIVE_DEPOSIT_THRESHOLD - lifetimeAfter);
-        msg.push(`Deposit $${remaining.toFixed(2)} more in lifetime totals to become Active and unlock bonuses.`);
+        msg.push(`Deposit $${remaining.toFixed(2)} more in lifetime totals to reach Active status.`);
       }
 
       await Notification.create({

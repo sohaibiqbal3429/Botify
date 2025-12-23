@@ -7,6 +7,9 @@ import Transaction from "@/models/Transaction"
 import BonusPayout, { type BonusPayoutType } from "@/models/Payout"
 import {
   ACTIVE_DEPOSIT_THRESHOLD,
+  DEPOSIT_L1_PERCENT,
+  DEPOSIT_L2_PERCENT,
+  DEPOSIT_SELF_PERCENT,
   TEAM_EARN_L1_PERCENT,
   TEAM_EARN_L2_PERCENT,
   TEAM_REWARD_UNLOCK_LEVEL,
@@ -210,10 +213,9 @@ export async function applyDepositRewards(
     const wasActive = lifetimeBefore >= ACTIVE_DEPOSIT_THRESHOLD
     const depositorActive = lifetimeAfter >= ACTIVE_DEPOSIT_THRESHOLD
 
-    // New rule: L1 always 15%, L2 always 3%, no self bonus
-    const selfPercent = 0
-    const l1Percent = 0.15
-    const l2Percent = 0.03
+    // New rule: Father gets 8%, Grandfather gets 4%, no self bonus
+    const l1Percent = DEPOSIT_L1_PERCENT
+    const l2Percent = DEPOSIT_L2_PERCENT
 
     let selfBonus = 0
     let l1Bonus = 0
@@ -224,19 +226,22 @@ export async function applyDepositRewards(
     if (baseAmount > 0) {
       const depositorObjectId = asObjectId(depositor._id as mongoose.Types.ObjectId)
 
-      // Self
-      const selfResult = await createPayout({
-        payerUserId: depositorObjectId,
-        receiverUserId: depositorObjectId,
-        type: "DEPOSIT_BONUS_SELF",
-        baseAmount,
-        percent: selfPercent,
-        sourceTxId: options.depositTransactionId,
-        occurredAt,
-        session,
-        immediate: true,
-      })
-      selfBonus = selfResult.amount
+      if (DEPOSIT_SELF_PERCENT > 0) {
+        const selfResult = await createPayout({
+          payerUserId: depositorObjectId,
+          receiverUserId: depositorObjectId,
+          type: "DEPOSIT_BONUS_SELF",
+          baseAmount,
+          percent: DEPOSIT_SELF_PERCENT,
+          sourceTxId: options.depositTransactionId,
+          occurredAt,
+          session,
+          immediate: true,
+        })
+        selfBonus = selfResult.amount
+      } else {
+        selfBonus = 0
+      }
 
       // L1
       if (depositor.referredBy) {

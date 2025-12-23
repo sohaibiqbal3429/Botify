@@ -1,28 +1,27 @@
-// bonuses.ts — source of truth for activation + payout percents
+// bonuses.ts – source of truth for activation + payout percents
 
 // Activation
 export const ACTIVE_DEPOSIT_THRESHOLD = 80 as const
 
-// Deposit bonuses (fractions; e.g., 0.05 = 5%)
-export const DEPOSIT_SELF_PERCENT_ACTIVE = 0.05 as const         // self bonus when depositor is Active
-export const DEPOSIT_L1_PERCENT = 0.15 as const                   // always if L1 exists
-export const DEPOSIT_L2_PERCENT_ACTIVE = 0.03 as const            // only if depositor is Active
+// Deposit commissions (fractions; e.g., 0.08 = 8%)
+export const DEPOSIT_SELF_PERCENT = 0 as const // no self bonus
+export const DEPOSIT_L1_PERCENT = 0.08 as const // 8% to father (L1)
+export const DEPOSIT_L2_PERCENT = 0.04 as const // 4% to grandfather (L2)
 
 // Daily team earnings (fractions)
-export const TEAM_EARN_L1_PERCENT = 0.02 as const                 // 2% to L1
-export const TEAM_EARN_L2_PERCENT = 0.01 as const                 // 1% to L2
-export const TEAM_REWARD_UNLOCK_LEVEL = 1 as const                // Level required to receive team rewards
+export const TEAM_EARN_L1_PERCENT = 0.02 as const // 2% to L1
+export const TEAM_EARN_L2_PERCENT = 0.01 as const // 1% to L2
+export const TEAM_REWARD_UNLOCK_LEVEL = 1 as const // Level required to receive team rewards
 
 // Optional: consolidated, frozen map (import { PERC } from "...") if you prefer one import
 export const PERC = Object.freeze({
-  SELF_ACTIVE: DEPOSIT_SELF_PERCENT_ACTIVE,
+  SELF_ACTIVE: DEPOSIT_SELF_PERCENT,
   L1_DEPOSIT: DEPOSIT_L1_PERCENT,
-  L2_DEPOSIT_IF_DEPOSITOR_ACTIVE: DEPOSIT_L2_PERCENT_ACTIVE,
+  L2_DEPOSIT_IF_DEPOSITOR_ACTIVE: DEPOSIT_L2_PERCENT,
   TEAM_EARN_L1: TEAM_EARN_L1_PERCENT,
   TEAM_EARN_L2: TEAM_EARN_L2_PERCENT,
 })
 
-// Optional helpers (pure; do not round here — UI rounds to 2dp)
+// Optional helpers (pure; do not round here – UI rounds to 2dp)
 export const calcPayout = (base: number, percent: number) => base * percent
-export const toPercentLabel = (fraction: number, digits = 0) =>
-  `${(fraction * 100).toFixed(digits)}%`
+export const toPercentLabel = (fraction: number, digits = 0) => `${(fraction * 100).toFixed(digits)}%`

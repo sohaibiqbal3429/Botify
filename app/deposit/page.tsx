@@ -12,8 +12,7 @@ import { fetchWalletContext } from "@/lib/services/wallet"
 import {
   ACTIVE_DEPOSIT_THRESHOLD,
   DEPOSIT_L1_PERCENT,
-  DEPOSIT_L2_PERCENT_ACTIVE,
-  DEPOSIT_SELF_PERCENT_ACTIVE,
+  DEPOSIT_L2_PERCENT,
 } from "@/lib/constants/bonuses"
 import { Wallet } from "lucide-react"
 
@@ -76,7 +75,7 @@ export default async function DepositPage() {
               </span>
               {!isActive ? (
                 <span className="text-xs text-muted-foreground">
-                  Deposit ${remainingToActivate.toFixed(2)} more to unlock deposit bonuses.
+                  Deposit ${remainingToActivate.toFixed(2)} more to reach Active status.
                 </span>
               ) : null}
             </div>
@@ -117,32 +116,20 @@ export default async function DepositPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Bonus &amp; Referral Breakdown</CardTitle>
-                <CardDescription>
-                  Percentages are of the <strong>deposit amount</strong>. Your status is recalculated{" "}
-                  <strong>after each deposit</strong>; bonuses for that deposit use your{" "}
-                  <strong>post-update</strong> status.
-                </CardDescription>
+                <CardDescription>When you deposit, commissions are paid only to your father (L1) and grandfather (L2).</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-3">
                 <div>
-                  <p className="text-sm text-muted-foreground">Your bonus</p>
-                  <p className="text-xl font-semibold text-primary">
-                    {isActive ? `${pct(DEPOSIT_SELF_PERCENT_ACTIVE)} of every deposit` : `Become Active to unlock ${pct(DEPOSIT_SELF_PERCENT_ACTIVE)}`}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Father (L1) share</p>
+                  <p className="text-xl font-semibold">{pct(DEPOSIT_L1_PERCENT)} of each deposit</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">L1 referral share</p>
-                  <p className="text-xl font-semibold">
-                    {pct(DEPOSIT_L1_PERCENT)} of each deposit (always, if you have an L1)
-                  </p>
+                  <p className="text-sm text-muted-foreground">Grandfather (L2) share</p>
+                  <p className="text-xl font-semibold">{pct(DEPOSIT_L2_PERCENT)} of each deposit</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">L2 referral share</p>
-                  <p className="text-xl font-semibold">
-                    {isActive
-                      ? `${pct(DEPOSIT_L2_PERCENT_ACTIVE)} when you are Active`
-                      : "0% until you are Active"}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Other commissions</p>
+                  <p className="text-xl font-semibold">None – only L1 and L2 receive deposit payouts.</p>
                 </div>
               </CardContent>
             </Card>
