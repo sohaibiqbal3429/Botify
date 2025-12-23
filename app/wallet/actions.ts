@@ -103,13 +103,27 @@ export async function submitDepositAction(
 }
 
 function resolveInternalUrl(path: string): string {
-  const configuredBase =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXTAUTH_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "")
+  const candidates = [
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.NEXTAUTH_URL,
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+  ]
 
-  const baseUrl = configuredBase ? configuredBase.replace(/\/$/, "") : "http://localhost:3000"
-  return `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`
+  const sanitizedPath = path.startsWith("/") ? path : `/${path}`
+
+  for (const candidate of candidates) {
+    const value = candidate?.trim()
+    if (!value) continue
+
+    try {
+      const url = new URL(value.startsWith("http") ? value : `https://${value}`)
+      return `${url.origin}${sanitizedPath}`
+    } catch {
+      // Skip invalid values and try the next candidate
+    }
+  }
+
+  return `http://localhost:3000${sanitizedPath}`
 }
 
 export async function submitWithdrawAction(
