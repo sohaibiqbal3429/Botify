@@ -3,6 +3,7 @@
 import type React from "react"
 import { useEffect, useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { BadgeCheck, CheckCircle, Copy, Key, Loader2, Mail, Sparkles, User } from "lucide-react"
 
@@ -22,6 +23,39 @@ import { ACTIVE_DEPOSIT_THRESHOLD } from "@/lib/constants/bonuses"
 import { formatOTPSuccessMessage, type OTPSuccessPayload } from "@/lib/utils/otp-messages"
 
 type StatusMessage = { success?: string; error?: string }
+
+type ParsedResponse = {
+  data: Record<string, unknown> | null
+  fallbackText: string
+}
+
+const parseJsonSafe = async (response: Response): Promise<ParsedResponse> => {
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
+
+  if (contentType.includes("application/json")) {
+    const data = (await response.json().catch(() => null)) as Record<string, unknown> | null
+    return { data, fallbackText: "" }
+  }
+
+  const fallbackText = (await response.text().catch(() => "")) || ""
+  return { data: null, fallbackText }
+}
+
+const sanitizeMessage = (message: string | undefined | null) =>
+  (message ?? "")
+    .replace(/<[^>]*>/g, "")
+    .trim()
+
+const extractMessage = (
+  parsed: Record<string, unknown> | null,
+  fallbackText: string,
+  defaultMessage: string,
+) =>
+  sanitizeMessage(
+    (typeof parsed?.message === "string" && parsed.message) ||
+      (typeof parsed?.error === "string" && parsed.error) ||
+      fallbackText,
+  ) || defaultMessage
 
 const toNumber = (v: unknown, fallback = 0): number => {
   if (v === null || v === undefined) return fallback
@@ -157,12 +191,19 @@ export default function ProfilePage() {
     setOtpLoading(true)
     setOtpStatus({})
     try {
-      const response = await fetch("/api/auth/otp?context=password_reset", { method: "POST" })
-      const data: OTPSuccessPayload = await response.json()
+      const response = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: profileData.email, purpose: "password_reset" }),
+      })
+      const { data, fallbackText } = await parseJsonSafe(response)
+
       if (!response.ok) {
-        throw new Error((data as any)?.error || "Failed to send verification code")
+        throw new Error(extractMessage(data, fallbackText, "Failed to send verification code"))
       }
-      setOtpStatus({ success: formatOTPSuccessMessage(data, "Verification code sent") })
+      setOtpStatus({
+        success: formatOTPSuccessMessage(data as OTPSuccessPayload, "Verification code sent"),
+      })
     } catch (error: any) {
       const message = typeof error?.message === "string" ? error.message : "Failed to send verification code"
       setOtpStatus({ error: message })
@@ -189,7 +230,7 @@ export default function ProfilePage() {
     setGlobalError("")
 
     try {
-      const response = await fetch("/api/profile/password", {
+      const response = await fetch("/api/profile/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -199,10 +240,11 @@ export default function ProfilePage() {
         }),
       })
 
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.message || data.error || "Failed to update password")
+      const { data, fallbackText } = await parseJsonSafe(response)
+      const message = extractMessage(data, fallbackText, "Failed to update password")
+      if (!response.ok) throw new Error(message)
 
-      setPasswordStatus({ success: data.message || "Password updated successfully." })
+      setPasswordStatus({ success: message || "Password updated successfully." })
       setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "", otpCode: "" })
     } catch (error: any) {
       const message = typeof error?.message === "string" ? error.message : "Failed to update password"
@@ -563,8 +605,14 @@ export default function ProfilePage() {
                     </div>
 
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <Label htmlFor="otpCode">Email verification code</Label>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>Need help?</span>
+                          <Link href="/auth/forgot" className="text-primary hover:underline">
+                            Forgot password
+                          </Link>
+                        </div>
                         <Button
                           type="button"
                           variant="outline"
