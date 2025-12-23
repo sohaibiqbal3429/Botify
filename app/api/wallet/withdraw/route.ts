@@ -32,9 +32,15 @@ export async function POST(request: NextRequest) {
     await dbConnect()
 
     const body = await request.json()
+    if (body?.source && body.source !== "earnings") {
+      return NextResponse.json(
+        { error: "Withdrawals are only allowed from earnings balance.", code: "EARNINGS_ONLY" },
+        { status: 400 },
+      )
+    }
     const validatedData = withdrawSchema.parse(body)
     const requestAmount = normaliseAmount(validatedData.amount)
-    const source = validatedData.source ?? "earnings"
+    const source: "earnings" = "earnings"
 
     const [user, balanceDoc, settings] = await Promise.all([
       User.findById(userPayload.userId),
@@ -79,26 +85,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (source !== "earnings") {
-      return NextResponse.json(
-        { error: "Withdrawals are only allowed from earnings balance.", code: "EARNINGS_ONLY" },
-        { status: 400 },
-      )
-    }
-
     const withdrawableSnapshot = calculateWithdrawableSnapshot(balanceDoc, now)
-    const earningsBalance = Math.max(
-      0,
-      normaliseAmount(balanceDoc.totalEarning ?? 0) - normaliseAmount(balanceDoc.pendingWithdraw ?? 0),
-    )
-    const selectedBalance = Math.min(earningsBalance, withdrawableSnapshot.withdrawable)
+    const earningsBalance = normaliseAmount(balanceDoc.totalEarning ?? 0)
+    const pendingWithdraw = normaliseAmount(balanceDoc.pendingWithdraw ?? 0)
+    const availableFromEarnings = Math.max(0, earningsBalance - pendingWithdraw)
+    const availableToWithdraw = Math.min(availableFromEarnings, withdrawableSnapshot.withdrawable)
 
     incrementCounter("wallet.withdraw.request_attempt", 1, {
       bucket: resolveAmountBucket(requestAmount),
       source,
     })
 
-    if (requestAmount > selectedBalance) {
+    if (requestAmount > availableToWithdraw) {
       incrementCounter("wallet.withdraw.request_rejected", 1, {
         reason: "insufficient_selected_balance",
         source,
@@ -106,9 +104,9 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         {
-          error: "Withdrawal amount cannot exceed your selected balance.",
-          code: "SELECTED_BALANCE_INSUFFICIENT",
-          context: { requestedAmount: requestAmount, selectedBalance, source },
+          error: "Withdrawal amount cannot exceed your available earnings.",
+          code: "AVAILABLE_BALANCE_INSUFFICIENT",
+          context: { requestedAmount: requestAmount, availableToWithdraw, source },
         },
         { status: 400 },
       )
@@ -149,7 +147,7 @@ export async function POST(request: NextRequest) {
           pendingWithdraw: withdrawableSnapshot.pendingWithdraw,
           shortage,
           source,
-          selectedBalance,
+          availableToWithdraw,
         },
       })
 
@@ -195,77 +193,90 @@ export async function POST(request: NextRequest) {
 
     const guardAmount = normaliseAmount(requestAmount)
 
-// Decide which balance field to debit based on source
-const updateFilter =
-  source === "earnings"
-    ? { userId: userPayload.userId, totalEarning: { $gte: guardAmount } }
-    : { userId: userPayload.userId, current: { $gte: guardAmount } }
+    const updateResult = await Balance.updateOne(
+      {
+        userId: userPayload.userId,
+        $expr: {
+          $and: [
+            { $gte: [{ $subtract: ["$totalEarning", "$pendingWithdraw"] }, guardAmount] },
+            { $gte: ["$current", guardAmount] },
+            { $eq: ["$pendingWithdraw", pendingWithdraw] },
+          ],
+        },
+      },
+      { $inc: { pendingWithdraw: requestAmount } },
+    )
 
-const updateInc =
-  source === "earnings"
-    ? { totalEarning: -requestAmount, pendingWithdraw: requestAmount }
-    : { current: -requestAmount, pendingWithdraw: requestAmount }
+    if (updateResult.modifiedCount === 0) {
+      const freshBalance = await Balance.findOne({ userId: userPayload.userId })
+      const refreshedSnapshot = freshBalance ? calculateWithdrawableSnapshot(freshBalance, now) : null
 
-const updateResult = await Balance.updateOne(updateFilter, { $inc: updateInc })
-
-if (updateResult.modifiedCount === 0) {
-  const freshBalance = await Balance.findOne({ userId: userPayload.userId })
-  const refreshedSnapshot = freshBalance ? calculateWithdrawableSnapshot(freshBalance, now) : null
-
-  incrementCounter("wallet.withdraw.request_rejected", 1, {
-    reason: "stale_balance",
-  })
-
-  emitAuditLog({
-    event: "withdrawal_request_conflict",
-    actorId: userPayload.userId,
-    metadata: {
-      requestedAmount: requestAmount,
-      withdrawable: refreshedSnapshot?.withdrawable ?? 0,
-      source,
-    },
-    severity: "warn",
-  })
-
-  return NextResponse.json(
-    {
-      error: `Your balance changed while processing the withdrawal. You can withdraw up to $${(refreshedSnapshot?.withdrawable ?? 0).toFixed(2)} right now.`,
-      code: "BALANCE_CHANGED",
-      context: {
+      console.warn("Withdrawal request conflict: balance guard failed", {
+        userId: userPayload.userId,
         requestedAmount: requestAmount,
-        withdrawable: refreshedSnapshot?.withdrawable ?? 0,
+        guardPending: pendingWithdraw,
+        refreshedWithdrawable: refreshedSnapshot?.withdrawable ?? null,
+      })
+
+      incrementCounter("wallet.withdraw.request_rejected", 1, {
+        reason: "stale_balance",
+      })
+
+      emitAuditLog({
+        event: "withdrawal_request_conflict",
+        actorId: userPayload.userId,
+        metadata: {
+          requestedAmount: requestAmount,
+          withdrawable: refreshedSnapshot?.withdrawable ?? 0,
+          source,
+        },
+        severity: "warn",
+      })
+
+      return NextResponse.json(
+        {
+          error: `Your balance changed while processing the withdrawal. You can withdraw up to $${(refreshedSnapshot?.withdrawable ?? 0).toFixed(2)} right now.`,
+          code: "BALANCE_CHANGED",
+          context: {
+            requestedAmount: requestAmount,
+            withdrawable: refreshedSnapshot?.withdrawable ?? 0,
+            source,
+          },
+        },
+        { status: 409 },
+      )
+    }
+
+    const refreshedBalance = await Balance.findOne({ userId: userPayload.userId })
+    if (!refreshedBalance) {
+      throw new Error("Balance missing after withdrawal update")
+    }
+
+    const refreshedSnapshot = calculateWithdrawableSnapshot(refreshedBalance, now)
+    const refreshedPending = normaliseAmount(refreshedBalance.pendingWithdraw ?? 0)
+    const refreshedAvailableFromEarnings = Math.max(
+      0,
+      normaliseAmount(refreshedBalance.totalEarning ?? 0) - refreshedPending,
+    )
+    const refreshedAvailable = Math.min(refreshedAvailableFromEarnings, refreshedSnapshot.withdrawable)
+
+    const userBalanceForMeta = Number(refreshedBalance.totalEarning ?? 0)
+
+    const transaction = await Transaction.create({
+      userId: userPayload.userId,
+      type: "withdraw",
+      amount: requestAmount,
+      status: "pending",
+      meta: {
+        walletAddress: validatedData.walletAddress,
+        requestedAt: now,
+        userBalance: userBalanceForMeta,
+        withdrawableAfterRequest: refreshedSnapshot.withdrawable,
+        pendingWithdrawAfterRequest: refreshedPending,
+        withdrawalFee: 0,
         source,
       },
-    },
-    { status: 409 },
-  )
-}
-
-const refreshedBalance = await Balance.findOne({ userId: userPayload.userId })
-if (!refreshedBalance) {
-  throw new Error("Balance missing after withdrawal update")
-}
-
-const refreshedSnapshot = calculateWithdrawableSnapshot(refreshedBalance, now)
-
-// Store the "selected" balance in meta depending on source
-const userBalanceForMeta =
-  source === "earnings" ? Number(refreshedBalance.totalEarning ?? 0) : Number(refreshedBalance.current ?? 0)
-
-const transaction = await Transaction.create({
-  userId: userPayload.userId,
-  type: "withdraw",
-  amount: requestAmount,
-  status: "pending",
-  meta: {
-    walletAddress: validatedData.walletAddress,
-    requestedAt: now,
-    userBalance: userBalanceForMeta,
-    withdrawableAfterRequest: refreshedSnapshot.withdrawable,
-    withdrawalFee: 0,
-    source,
-  },
-})
+    })
 
     await Notification.create({
       userId: userPayload.userId,
@@ -286,6 +297,7 @@ const transaction = await Transaction.create({
         requestedAmount: requestAmount,
         pendingWithdraw: refreshedSnapshot.pendingWithdraw,
         withdrawableAfterRequest: refreshedSnapshot.withdrawable,
+        availableAfterRequest: refreshedAvailable,
         source,
       },
     })
@@ -300,7 +312,7 @@ const transaction = await Transaction.create({
         walletAddress: validatedData.walletAddress,
         source,
       },
-      newBalance: refreshedSnapshot.current,
+      availableToWithdraw: refreshedAvailable,
       pendingWithdraw: refreshedSnapshot.pendingWithdraw,
       withdrawableBalance: refreshedSnapshot.withdrawable,
     })
@@ -308,7 +320,11 @@ const transaction = await Transaction.create({
     console.error("Withdrawal error:", error)
 
     if (error.name === "ZodError") {
-      return NextResponse.json({ error: "Validation failed", details: error.errors }, { status: 400 })
+      const firstIssue = Array.isArray(error?.errors) && error.errors.length > 0 ? error.errors[0]?.message : null
+      return NextResponse.json(
+        { error: firstIssue ?? "Validation failed", details: error.errors },
+        { status: 400 },
+      )
     }
 
     incrementCounter("wallet.withdraw.request_failed", 1, {
@@ -323,6 +339,11 @@ const transaction = await Transaction.create({
       },
     })
 
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const fallbackError =
+      typeof error?.message === "string" && error.message.trim()
+        ? error.message
+        : "Internal server error"
+
+    return NextResponse.json({ error: fallbackError }, { status: 500 })
   }
 }

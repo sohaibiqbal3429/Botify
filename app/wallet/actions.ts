@@ -14,6 +14,11 @@ export interface DepositFormState {
 export interface WithdrawFormState {
   error?: string | null
   success?: string | null
+  balances?: {
+    availableToWithdraw: number
+    pendingWithdraw: number
+    withdrawableBalance?: number
+  }
 }
 
 function isFileLike(value: unknown): value is File {
@@ -126,8 +131,6 @@ export async function submitWithdrawAction(
   const walletAddress = String(formData.get("walletAddress") ?? "").trim()
   if (!walletAddress) return { error: "Enter or select a wallet address" }
 
-  const source = String(formData.get("source") ?? "main") === "earnings" ? "earnings" : "main"
-
   const cookieHeader = cookieStore
     .getAll()
     .map((cookie) => `${cookie.name}=${cookie.value}`)
@@ -140,7 +143,7 @@ export async function submitWithdrawAction(
         "Content-Type": "application/json",
         ...(cookieHeader ? { Cookie: cookieHeader } : {}),
       },
-      body: JSON.stringify({ amount: amountValue, walletAddress, source }),
+      body: JSON.stringify({ amount: amountValue, walletAddress, source: "earnings" }),
       cache: "no-store",
     })
 
@@ -154,14 +157,21 @@ export async function submitWithdrawAction(
       return { error: message }
     }
 
-    // ✅ FIX: correct wallet route
     revalidatePath("/e-wallet")
+    revalidatePath("/withdraw")
+
+    const updatedBalances =
+      typeof data?.availableToWithdraw === "number" || typeof data?.pendingWithdraw === "number"
+        ? {
+            availableToWithdraw: Number(data.availableToWithdraw ?? data.withdrawableBalance ?? 0),
+            pendingWithdraw: Number(data.pendingWithdraw ?? 0),
+            withdrawableBalance: Number(data.withdrawableBalance ?? data.availableToWithdraw ?? 0),
+          }
+        : undefined
 
     return {
-      success:
-        typeof data?.transaction?.amount === "number"
-          ? `Withdrawal request for $${Number(data.transaction.amount).toFixed(2)} submitted successfully.`
-          : "Withdrawal request submitted successfully.",
+      success: "Withdrawal request submitted successfully.",
+      balances: updatedBalances,
     }
   } catch (error: any) {
     console.error("Withdrawal submission failed (raw):", {
@@ -170,6 +180,10 @@ export async function submitWithdrawAction(
       stack: error?.stack,
       cause: error?.cause,
     })
-    return { error: "Unable to submit withdrawal. Please try again." }
+    const fallbackMessage =
+      typeof error?.message === "string" && error.message.trim()
+        ? error.message
+        : "Unable to submit withdrawal. Please try again."
+    return { error: fallbackMessage }
   }
 }

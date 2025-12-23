@@ -31,7 +31,7 @@ export const depositSchema = z.object({
 export const withdrawSchema = z.object({
   amount: z.number().min(30, "Minimum withdrawal is $30 USDT"),
   walletAddress: z.string().min(1, "Wallet address is required"),
-  source: z.enum(["main", "earnings"]).default("earnings"),
+  source: z.literal("earnings").default("earnings"),
 })
 
 export const walletAddressSchema = z.object({
