@@ -32,7 +32,10 @@ export async function POST(request: NextRequest) {
     await dbConnect()
 
     const body = await request.json()
-    if (body?.source && body.source !== "earnings") {
+    const sourceValue =
+      body && typeof body === "object" && "source" in body ? (body as { source?: unknown }).source : undefined
+
+    if (typeof sourceValue !== "undefined" && sourceValue !== "earnings") {
       return NextResponse.json(
         { error: "Withdrawals are only allowed from earnings balance.", code: "EARNINGS_ONLY" },
         { status: 400 },
@@ -196,15 +199,18 @@ export async function POST(request: NextRequest) {
     const updateResult = await Balance.updateOne(
       {
         userId: userPayload.userId,
-        $expr: {
-          $and: [
-            { $gte: [{ $subtract: ["$totalEarning", "$pendingWithdraw"] }, guardAmount] },
-            { $gte: ["$current", guardAmount] },
-            { $eq: ["$pendingWithdraw", pendingWithdraw] },
-          ],
+        pendingWithdraw,
+        current: { $gte: guardAmount },
+        totalBalance: { $gte: guardAmount },
+        totalEarning: { $gte: guardAmount + pendingWithdraw },
+      },
+      {
+        $inc: {
+          pendingWithdraw: requestAmount,
+          current: -requestAmount,
+          totalBalance: -requestAmount,
         },
       },
-      { $inc: { pendingWithdraw: requestAmount } },
     )
 
     if (updateResult.modifiedCount === 0) {

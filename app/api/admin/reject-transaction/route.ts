@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
         {
           $inc: {
             current: transaction.amount,
+            totalBalance: transaction.amount,
             pendingWithdraw: -transaction.amount,
           },
         },
