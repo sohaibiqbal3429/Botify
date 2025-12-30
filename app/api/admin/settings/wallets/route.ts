@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ wallets })
   } catch (error) {
     console.error("Failed to load wallet settings", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const message = error instanceof Error ? error.message : "Internal server error"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
@@ -95,6 +96,7 @@ export async function PUT(request: NextRequest) {
     }
 
     console.error("Failed to update wallet settings", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const message = error instanceof Error ? error.message : "Internal server error"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

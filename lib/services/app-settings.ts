@@ -92,8 +92,12 @@ function decryptValueIfNeeded(value: string | undefined | null): string {
   try {
     return decryptString(value)
   } catch (error) {
-    console.error("Failed to decrypt app setting value", error)
-    throw new Error("Unable to decrypt stored configuration value")
+    console.error("Failed to decrypt app setting value. Falling back to empty so it can be replaced.", {
+      message: error instanceof Error ? error.message : String(error),
+    })
+    // If the encryption key is missing or the payload is corrupt, return an empty string
+    // so the admin can re-enter addresses instead of surfacing a 500.
+    return ""
   }
 }
 
@@ -140,45 +144,56 @@ async function loadWalletSettingsSnapshot(): Promise<WalletSettingsSnapshot> {
     return walletCache.snapshot
   }
 
-  await dbConnect()
+  try {
+    await dbConnect()
 
-  const docs = await AppSetting.find({
-    key: { $in: WALLET_DESCRIPTORS.map((descriptor) => descriptor.key) },
-  })
-    .populate({ path: "updatedBy", select: { name: 1, email: 1 } })
-    .lean()
+    const docs = await AppSetting.find({
+      key: { $in: WALLET_DESCRIPTORS.map((descriptor) => descriptor.key) },
+    })
+      .populate({ path: "updatedBy", select: { name: 1, email: 1 } })
+      .lean()
 
-  const docMap = new Map<string, (typeof docs)[number]>()
-  for (const doc of docs) {
-    docMap.set(doc.key, doc)
-  }
-
-  const adminRecords: WalletSettingAdminRecord[] = []
-  for (const descriptor of WALLET_DESCRIPTORS) {
-    const doc = docMap.get(descriptor.key)
-    if (doc) {
-      const decrypted = decryptValueIfNeeded(doc.value)
-      adminRecords.push(
-        computeAdminRecord(descriptor, decrypted, "db", doc.updatedAt ?? null, (doc as any).updatedBy ?? null),
-      )
-      continue
+    const docMap = new Map<string, (typeof docs)[number]>()
+    for (const doc of docs) {
+      docMap.set(doc.key, doc)
     }
 
-    const fallback = readEnvFallback(descriptor.envKeys)
-    if (fallback) {
-      adminRecords.push(computeAdminRecord(descriptor, fallback, "env", null, null))
-    } else {
-      adminRecords.push(computeAdminRecord(descriptor, "", "unset", null, null))
+    const adminRecords: WalletSettingAdminRecord[] = []
+    for (const descriptor of WALLET_DESCRIPTORS) {
+      const doc = docMap.get(descriptor.key)
+      if (doc) {
+        const decrypted = decryptValueIfNeeded(doc.value)
+        adminRecords.push(
+          computeAdminRecord(descriptor, decrypted, "db", doc.updatedAt ?? null, (doc as any).updatedBy ?? null),
+        )
+        continue
+      }
+
+      const fallback = readEnvFallback(descriptor.envKeys)
+      if (fallback) {
+        adminRecords.push(computeAdminRecord(descriptor, fallback, "env", null, null))
+      } else {
+        adminRecords.push(computeAdminRecord(descriptor, "", "unset", null, null))
+      }
     }
-  }
 
-  const snapshot: WalletSettingsSnapshot = {
-    admin: adminRecords,
-    public: computePublicRecords(adminRecords),
-  }
+    const snapshot: WalletSettingsSnapshot = {
+      admin: adminRecords,
+      public: computePublicRecords(adminRecords),
+    }
 
-  walletCache = { snapshot, expiresAt: now + CACHE_TTL_MS }
-  return snapshot
+    walletCache = { snapshot, expiresAt: now + CACHE_TTL_MS }
+    return snapshot
+  } catch (error) {
+    console.error("Failed to load wallet settings from database. Falling back to environment values.", error)
+    const adminRecords = getWalletSettingsFromEnv()
+    const snapshot: WalletSettingsSnapshot = {
+      admin: adminRecords,
+      public: computePublicRecords(adminRecords),
+    }
+    walletCache = { snapshot, expiresAt: now + CACHE_TTL_MS }
+    return snapshot
+  }
 }
 
 export function invalidateWalletSettingsCache() {
