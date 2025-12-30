@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "node scripts/ensure-next-polyfill.js",
     "build": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next build",
     "dev": "next dev",
     "lint": "next lint",
