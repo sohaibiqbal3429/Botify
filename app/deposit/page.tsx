@@ -3,12 +3,12 @@ import { redirect } from "next/navigation"
 
 import { Sidebar } from "@/components/layout/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { DepositForm } from "@/components/wallet/deposit-form"
-import { verifyToken } from "@/lib/auth"
-import { getDepositWalletOptions } from "@/lib/config/wallet"
-import { fetchWalletContext } from "@/lib/services/wallet"
+import { verifyToken, type JWTPayload } from "@/lib/auth"
+import { getDepositWalletOptions, type DepositWalletOption } from "@/lib/config/wallet"
+import { fetchWalletContext, type WalletContext } from "@/lib/services/wallet"
 import {
   ACTIVE_DEPOSIT_THRESHOLD,
   DEPOSIT_L1_PERCENT,
@@ -26,6 +26,37 @@ const num = (v: unknown, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback
 }
 
+function buildFallbackContext(session: JWTPayload): WalletContext {
+  return {
+    user: {
+      name: session.email,
+      email: session.email,
+      referralCode: session.userId,
+      role: session.role,
+      profileAvatar: "avatar-01",
+      isActive: false,
+      depositTotal: 0,
+    },
+    stats: {
+      currentBalance: 0,
+      totalBalance: 0,
+      totalEarning: 0,
+      earningsBalance: 0,
+      pendingWithdraw: 0,
+      staked: 0,
+      walletBalance: 0,
+    },
+    minDeposit: 50,
+    withdrawConfig: {
+      minWithdraw: 30,
+    },
+    withdrawable: {
+      amount: 0,
+      pendingWithdraw: 0,
+    },
+  }
+}
+
 export default async function DepositPage() {
   const cookieStore = await cookies()
   const token = cookieStore.get("auth-token")?.value
@@ -38,12 +69,29 @@ export default async function DepositPage() {
     redirect("/auth/login")
   }
 
-  const context = await fetchWalletContext(session.userId)
-  if (!context) {
-    redirect("/auth/login")
+  let loadError: string | null = null
+  let context: WalletContext | null = null
+  let walletOptions: DepositWalletOption[] = []
+
+  try {
+    context = await fetchWalletContext(session.userId)
+  } catch (error) {
+    console.error("Failed to load wallet context for deposit page", error)
+    loadError = "We couldn't load your wallet details right now."
   }
 
-  const walletOptions = await getDepositWalletOptions()
+  if (!context) {
+    loadError ??= "We couldn't load your wallet details right now."
+    context = buildFallbackContext(session)
+  }
+
+  try {
+    walletOptions = await getDepositWalletOptions()
+  } catch (error) {
+    console.error("Failed to load deposit wallet options", error)
+    loadError = loadError ?? "Deposit wallets are temporarily unavailable."
+    walletOptions = []
+  }
 
   const isActive = !!context.user.isActive
   const lifetimeDeposits = num(context.user.depositTotal)
@@ -59,6 +107,12 @@ export default async function DepositPage() {
       <Sidebar user={context.user} />
       <main className="flex-1 w-full min-w-0 overflow-auto md:ml-64">
         <div className="w-full max-w-none space-y-6 p-6 md:p-6">
+          {loadError ? (
+            <Alert variant="destructive">
+              <AlertTitle>Some data failed to load</AlertTitle>
+              <AlertDescription>{loadError}</AlertDescription>
+            </Alert>
+          ) : null}
           <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Deposit Funds</h1>
