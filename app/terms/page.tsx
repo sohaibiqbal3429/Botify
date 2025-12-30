@@ -29,8 +29,7 @@ const FAQS = [
   },
   {
     title: "6. Is there a fee for withdrawals?",
-    body:
-      "Standard network fees apply. Review the fee estimate shown in the withdrawal form before submitting your request.",
+    body: "Standard network fees apply. Review the fee estimate shown in the withdrawal form before submitting your request.",
   },
   {
     title: "7. What happens if I miss a day?",
@@ -58,15 +57,55 @@ const FAQS = [
   },
   {
     title: "12. How do I contact support?",
-    body:
-      'If you encounter any issues, contact the 5gBotify support team through the "Help" or "Contact Us" section in your dashboard for quick assistance.',
+    body: (
+      <div className="space-y-2">
+        <p className="text-foreground">💬 Need help or facing an issue?</p>
+        <p>
+          If you encounter any issues, contact the <b className="text-foreground">5gBotify support team</b> through the{" "}
+          <b className="text-foreground">“Help”</b> or <b className="text-foreground">“Contact Us”</b> section in your
+          dashboard for quick assistance.
+        </p>
+      </div>
+    ),
+  },
+  {
+    title: "⚠️ Important Policy: Multiple or Fake Accounts",
+    body: (
+      <div className="space-y-3">
+        <p className="font-medium text-foreground">
+          Q: What happens if someone creates multiple or fake accounts?
+        </p>
+
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-foreground">
+          <p className="font-semibold text-red-500">🚫 Strict Action Policy</p>
+          <p className="mt-2">
+            If any user creates <b>multiple accounts</b> or uses <b>fake/incorrect information</b>,{" "}
+            <b>all such accounts will be permanently blocked</b>.
+          </p>
+
+          <ul className="mt-3 list-disc space-y-1 pl-5">
+            <li>Any deposit made will be <b>forfeited</b></li>
+            <li>
+              <b>No withdrawals</b> will be allowed
+            </li>
+            <li>
+              Applies <b>regardless of the deposit amount</b>
+            </li>
+          </ul>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          ✅ Please use only one account and keep your information accurate to avoid issues.
+        </p>
+      </div>
+    ),
   },
 ]
 
 function TermsContent() {
   return (
     <div className="flex min-h-screen bg-background">
-    <main className="mx-auto flex w-full flex-col gap-6 px-4 py-10">
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10">
         <header className="space-y-2 text-center">
           <p className="text-xs uppercase tracking-[0.28em] text-emerald-500">Knowledge base</p>
           <h1 className="text-3xl font-semibold">Terms & FAQs</h1>
