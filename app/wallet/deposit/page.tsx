@@ -7,23 +7,13 @@ import { Badge } from "@/components/ui/badge"
 import { DepositForm } from "@/components/wallet/deposit-form"
 import { verifyToken, type JWTPayload } from "@/lib/auth"
 import { fetchWalletContext, type WalletContext } from "@/lib/services/wallet"
-import {
-  ACTIVE_DEPOSIT_THRESHOLD,
-  DEPOSIT_L1_PERCENT,
-  DEPOSIT_L2_PERCENT,
-} from "@/lib/constants/bonuses"
+import { getDepositWalletOptions, type DepositWalletOption } from "@/lib/config/wallet"
+import { ACTIVE_DEPOSIT_THRESHOLD, DEPOSIT_L1_PERCENT, DEPOSIT_L2_PERCENT } from "@/lib/constants/bonuses"
 import { Wallet } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
 /* -------------------- helpers -------------------- */
-
-type DepositWalletOption = {
-  id: string
-  label: string
-  address: string
-  network: string
-}
 
 const pct = (n: number) => `${(n * 100).toFixed(0)}%`
 
@@ -32,23 +22,6 @@ const num = (v: unknown, fallback = 0) => {
   if (typeof v === "number") return v
   const n = Number((v as any).toString?.() ?? v)
   return Number.isFinite(n) ? n : fallback
-}
-
-/* -------------------- ENV wallets -------------------- */
-
-function getDepositWalletOptionsFromEnv(): DepositWalletOption[] {
-  const wallets = [
-    process.env.WALLET_ADDRESS_1,
-    process.env.WALLET_ADDRESS_2,
-    process.env.WALLET_ADDRESS_3,
-  ].filter(Boolean)
-
-  return wallets.map((address, index) => ({
-    id: `wallet-${index + 1}`,
-    label: `USDT Wallet ${index + 1}`,
-    address: address as string,
-    network: "USDT (BEP-20)",
-  }))
 }
 
 /* -------------------- fallback context -------------------- */
@@ -109,7 +82,14 @@ export default async function DepositPage() {
     context = buildFallbackContext(session)
   }
 
-  const walletOptions = getDepositWalletOptionsFromEnv()
+  let walletOptions: DepositWalletOption[] = []
+
+  try {
+    walletOptions = await getDepositWalletOptions()
+  } catch (error) {
+    console.error("Wallet options error:", error)
+    loadError = loadError ?? "Deposit wallets are not configured."
+  }
 
   if (walletOptions.length === 0) {
     loadError = loadError ?? "Deposit wallets are not configured."
