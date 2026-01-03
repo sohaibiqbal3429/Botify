@@ -60,7 +60,6 @@ export interface AdminStats {
   pendingWithdrawals: number
   totalDeposits: number
   totalWithdrawals: number
-  pendingLuckyDrawDeposits: number
 }
 
 export interface AdminWalletSetting {
@@ -75,11 +74,6 @@ export interface AdminWalletSetting {
 }
 
 export interface AdminPlatformSettings {
-  dailyProfitPercent: number
-  bounds: {
-    min: number
-    max: number
-  }
   wallets: AdminWalletSetting[]
 }
 

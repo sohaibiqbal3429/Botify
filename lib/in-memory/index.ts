@@ -30,15 +30,7 @@ const COLLECTION_RELATIONS: Record<string, Record<string, { collection: string }
     payerUserId: { collection: "users" },
     receiverUserId: { collection: "users" },
   },
-  luckyDrawDeposits: {
-    userId: { collection: "users" },
-    decidedBy: { collection: "users" },
-  },
   ledgerEntries: { userId: { collection: "users" } },
-  luckyDrawRounds: {
-    selectedDepositId: { collection: "luckyDrawDeposits" },
-    selectedUserId: { collection: "users" },
-  },
   teamDailyProfits: {
     memberId: { collection: "users" },
     "claimedBy.userId": { collection: "users" },
@@ -393,9 +385,7 @@ class InMemoryDatabase {
     this.collections.set("notifications", new InMemoryCollection("notifications", createNotifications(users)))
     this.collections.set("walletAddresses", new InMemoryCollection("walletAddresses", createWalletAddresses(users)))
     this.collections.set("levelHistories", new InMemoryCollection("levelHistories", []))
-    this.collections.set("luckyDrawDeposits", new InMemoryCollection("luckyDrawDeposits", []))
     this.collections.set("ledgerEntries", new InMemoryCollection("ledgerEntries", []))
-    this.collections.set("luckyDrawRounds", new InMemoryCollection("luckyDrawRounds", createLuckyDrawRounds(users)))
     this.collections.set("bonuspayouts", new InMemoryCollection("bonuspayouts", []))
     this.collections.set("teamDailyProfits", new InMemoryCollection("teamDailyProfits", []))
     this.collections.set("teamDailyClaims", new InMemoryCollection("teamDailyClaims", []))
@@ -458,9 +448,7 @@ function registerMongooseModels(db: InMemoryDatabase) {
     { name: "Notification", collection: db.getCollection("notifications") },
     { name: "WalletAddress", collection: db.getCollection("walletAddresses") },
     { name: "LevelHistory", collection: db.getCollection("levelHistories") },
-    { name: "LuckyDrawDeposit", collection: db.getCollection("luckyDrawDeposits") },
     { name: "LedgerEntry", collection: db.getCollection("ledgerEntries") },
-    { name: "LuckyDrawRound", collection: db.getCollection("luckyDrawRounds") },
     { name: "BonusPayout", collection: db.getCollection("bonuspayouts") },
     { name: "TeamDailyProfit", collection: db.getCollection("teamDailyProfits") },
     { name: "TeamDailyClaim", collection: db.getCollection("teamDailyClaims") },
@@ -1640,34 +1628,6 @@ function createWalletAddresses(users: InMemoryDocument[]): InMemoryDocument[] {
   }))
 }
 
-function createLuckyDrawRounds(users: InMemoryDocument[]): InMemoryDocument[] {
-  const now = new Date()
-  const start = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-  const end = new Date(start.getTime() + 72 * 60 * 60 * 1000)
-  const lastWinnerUser = users[0]
-
-  return [
-    {
-      _id: generateObjectId(),
-      roundNumber: 1,
-      status: "ACTIVE",
-      prizePoolUsd: 30,
-      startAtUtc: start,
-      endAtUtc: end,
-      announcementAtUtc: end,
-      selectedDepositId: null,
-      selectedUserId: null,
-      selectedWinnerName: null,
-      selectedAt: null,
-      lastWinnerName: lastWinnerUser?.name ?? "Wallet Ninja",
-      lastWinnerAnnouncedAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
-      createdAt: start,
-      updatedAt: start,
-    },
-  ]
-}
-
 export function getDemoCredentials() {
   return { email: "admin@cryptomining.com", password: DEMO_PASSWORD }
 }
-

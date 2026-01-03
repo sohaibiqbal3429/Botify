@@ -9,7 +9,6 @@ import User from "@/models/User"
 import LedgerEntry from "@/models/LedgerEntry"
 import Payout from "@/models/Payout"
 import { emitAuditLog } from "@/lib/observability/audit"
-import { getTeamDailyProfitPercent } from "@/lib/services/settings"
 
 const TEAM_DEPTH: Record<"A" | "B", number> = { A: 1, B: 2 }
 
@@ -349,8 +348,7 @@ export async function runDailyTeamEarnings(now = new Date()): Promise<DailyTeamE
   const { start, end, dayKey } = getPreviousPktDayRange(now)
   const profits = await aggregateProfits(start, end)
   // Admin-configurable percent; default to 1% if not set
-  const overridePct = await getTeamDailyProfitPercent().catch(() => null)
-  const ratePct = typeof overridePct === "number" && Number.isFinite(overridePct) ? overridePct : 1
+  const ratePct = 1
 
   const userCache = new Map<string, CachedUser | null>()
   let postedCount = 0

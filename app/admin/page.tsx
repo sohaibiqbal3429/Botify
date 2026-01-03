@@ -3,7 +3,6 @@ import { redirect } from "next/navigation"
 import { verifyToken } from "@/lib/auth"
 import { getAdminInitialData } from "@/lib/services/admin"
 import { getWalletSettingsFromEnv } from "@/lib/services/app-settings"
-import { getDailyProfitPercentBounds } from "@/lib/services/settings"
 import { AdminDashboard } from "@/components/admin/admin-dashboard"
 
 export const dynamic = "force-dynamic"
@@ -41,14 +40,11 @@ export default async function AdminPage() {
     pendingWithdrawals: 0,
     totalDeposits: 0,
     totalWithdrawals: 0,
-    pendingLuckyDrawDeposits: 0,
   }
 
   const fallbackWallets = getWalletSettingsFromEnv()
 
   const fallbackSettings = {
-    dailyProfitPercent: 1.5,
-    bounds: getDailyProfitPercentBounds(),
     wallets: fallbackWallets,
   }
 
