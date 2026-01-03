@@ -17,7 +17,7 @@ export const depositSchema = z.object({
   transactionNumber: z
     .string()
     .trim()
-    .min(10, "Transaction hash must be at least 10 characters")
+    .min(6, "Transaction hash must be at least 6 characters")
     .max(
       TRANSACTION_NUMBER_MAX_LENGTH,
       `Transaction hash must be ${TRANSACTION_NUMBER_MAX_LENGTH} characters or less`,

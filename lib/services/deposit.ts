@@ -23,12 +23,6 @@ import {
 const FAKE_DEPOSIT_AMOUNT = 50
 const TEST_TRANSACTION_NUMBER = "FAKE-DEPOSIT-12345"
 
-const HASH_PATTERNS = [
-  /^0x[a-fA-F0-9]{64}$/,
-  /^[a-fA-F0-9]{64}$/,
-  /^[A-Za-z0-9]{50,70}$/,
-]
-
 const RECEIPT_UPLOAD_DIRECTORY = join(process.cwd(), "public", "uploads", "deposit-receipts")
 
 async function resolveWalletOption(networkId: string) {
@@ -60,8 +54,7 @@ export interface DepositSubmissionInput {
 }
 
 function isLikelyTransactionHash(hash: string): boolean {
-  if (!hash) return false
-  return HASH_PATTERNS.some((pattern) => pattern.test(hash.trim()))
+  return typeof hash === "string" && hash.trim().length >= 6
 }
 
 // Persist without file-type/size restrictions (as requested)
@@ -146,19 +139,15 @@ export async function submitDeposit(input: DepositSubmissionInput) {
   }
 
   const settings = await Settings.findOne()
-  const configuredMin = Number(settings?.gating?.minDeposit ?? FAKE_DEPOSIT_AMOUNT)
-  const minDeposit = Number.isFinite(configuredMin) ? Math.max(configuredMin, FAKE_DEPOSIT_AMOUNT) : FAKE_DEPOSIT_AMOUNT
+  const configuredMin = Number(settings?.gating?.minDeposit ?? 50)
+  const minDeposit = Number.isFinite(configuredMin) ? Math.max(configuredMin, 50) : 50
 
   if (!isFakeDeposit && parsed.data.amount < minDeposit) {
     throw new DepositSubmissionError(`Amount must be at least $${formatAmount(minDeposit)}.`)
   }
 
-  if (!isFakeDeposit && !isLikelyTransactionHash(normalizedTransactionHash)) {
+  if (!isLikelyTransactionHash(normalizedTransactionHash)) {
     throw new DepositSubmissionError("Please provide a valid blockchain transaction hash")
-  }
-
-  if (!isFakeDeposit && !input.receiptFile) {
-    throw new DepositSubmissionError("A payment receipt screenshot from your exchange is required")
   }
 
   // Guard against duplicate submissions of the same tx hash
@@ -172,7 +161,7 @@ export async function submitDeposit(input: DepositSubmissionInput) {
 
   let receiptResult: Awaited<ReturnType<typeof persistReceipt>> | null = null
 
-  // Only persist the receipt after we know it's not a duplicate tx
+  // Only persist the receipt after we know it's not a duplicate tx (receipt optional)
   if (input.receiptFile) {
     receiptResult = await persistReceipt(input.receiptFile)
   }

@@ -4,7 +4,6 @@ import mongoose from "mongoose"
 import dbConnect from "@/lib/mongodb"
 import Balance from "@/models/Balance"
 import Payout from "@/models/Payout"
-// import { getTeamDailyProfitPercent } from "@/lib/services/settings" // not needed now (fixed 1%/1%)
 import Transaction, { type ITransaction } from "@/models/Transaction"
 import User from "@/models/User"
 import { runDailyTeamEarnings } from "@/lib/services/daily-team-earnings"

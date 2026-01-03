@@ -1,11 +1,9 @@
 // @ts-nocheck
 import dbConnect from "@/lib/mongodb"
 import Transaction from "@/models/Transaction"
-import LuckyDrawDeposit from "@/models/LuckyDrawDeposit"
 import User from "@/models/User"
 import Settings from "@/models/Settings"
 import type { AdminInitialData, AdminStats } from "@/lib/types/admin"
-import { getDailyProfitPercentBounds, resolveDailyProfitPercent } from "@/lib/services/settings"
 import { getWalletSettingsForAdmin } from "@/lib/services/app-settings"
 
 const toNumber = (value: unknown): number => {
@@ -27,8 +25,6 @@ export async function getAdminInitialData(adminId: string): Promise<AdminInitial
     ? (typeof settingsDoc.toObject === "function" ? settingsDoc.toObject() : (settingsDoc as any))
     : null
   const activeDepositThreshold = plainSettings?.gating?.activeMinDeposit ?? 80
-  const dailyProfitPercent = resolveDailyProfitPercent(plainSettings)
-  const dailyProfitBounds = getDailyProfitPercentBounds()
 
   const [
     totalUsersResult,
@@ -36,7 +32,6 @@ export async function getAdminInitialData(adminId: string): Promise<AdminInitial
     totalsAggregateResult,
     pendingDepositResult,
     pendingWithdrawalResult,
-    pendingLuckyDrawResult,
   ] = await Promise.allSettled([
     User.estimatedDocumentCount().exec(),
     User.countDocuments({ depositTotal: { $gte: activeDepositThreshold } }).exec(),
@@ -70,7 +65,6 @@ export async function getAdminInitialData(adminId: string): Promise<AdminInitial
     ]).exec(),
     Transaction.countDocuments({ type: "deposit", status: "pending" }).exec(),
     Transaction.countDocuments({ type: "withdraw", status: "pending" }).exec(),
-    LuckyDrawDeposit.countDocuments({ status: "PENDING" }).exec(),
   ])
 
   const readSettledValue = <T,>(result: PromiseSettledResult<T>, label: string, fallback: T): T => {
@@ -87,7 +81,6 @@ export async function getAdminInitialData(adminId: string): Promise<AdminInitial
   const totalsAggregate = readSettledValue(totalsAggregateResult, "aggregate totals", [])
   const pendingDepositCount = readSettledValue(pendingDepositResult, "pending deposit count", 0)
   const pendingWithdrawalCount = readSettledValue(pendingWithdrawalResult, "pending withdrawal count", 0)
-  const pendingLuckyDrawDeposits = readSettledValue(pendingLuckyDrawResult, "pending lucky draw deposits", 0)
 
   const stats: AdminStats = {
     totalUsers: totalUsersCount,
@@ -96,7 +89,6 @@ export async function getAdminInitialData(adminId: string): Promise<AdminInitial
     pendingWithdrawals: pendingWithdrawalCount,
     totalDeposits: toNumber(totalsAggregate?.[0]?.totalDeposits),
     totalWithdrawals: toNumber(totalsAggregate?.[0]?.totalWithdrawals),
-    pendingLuckyDrawDeposits,
   }
 
   const walletSettings = await getWalletSettingsForAdmin()
@@ -112,8 +104,6 @@ export async function getAdminInitialData(adminId: string): Promise<AdminInitial
     users: [],
     stats,
     settings: {
-      dailyProfitPercent,
-      bounds: dailyProfitBounds,
       wallets: walletSettings,
     },
   }
