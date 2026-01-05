@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "5GBOTIFY",
+    "slug": "5gbotify",
+    "scheme": "5gbotify",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "../public/logo.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "../public/images/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#05060A"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.fivegbotify.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "../public/logo.png",
+        "backgroundColor": "#05060A"
+      },
+      "permissions": [
+        "INTERNET",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
